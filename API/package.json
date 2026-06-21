@@ -1,5 +1,5 @@
 {
-  "name": "chismellm-v2",
+  "name": "haze",
   "version": "2.0.0",
   "description": "Tribunal adversarial de IAs: dos equipos (Acusación vs Defensa) debaten si un artefacto de código/documentación es malicioso, y un Juez dicta veredicto.",
   "type": "module",

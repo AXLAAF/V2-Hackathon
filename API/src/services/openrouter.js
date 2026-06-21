@@ -15,7 +15,7 @@ function authHeaders() {
     'Content-Type': 'application/json',
     // Encabezados recomendados por OpenRouter para atribución (opcionales).
     'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-    'X-Title': process.env.APP_TITLE || 'ChismeLLM V2',
+    'X-Title': process.env.APP_TITLE || 'HAZE',
   };
 }
 

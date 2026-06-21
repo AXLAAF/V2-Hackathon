@@ -31,7 +31,7 @@ try {
   if (!process.env.OPENROUTER_API_KEY) {
     fastify.log.warn('⚠️  OPENROUTER_API_KEY no está definida. Copia .env.example a .env.');
   }
-  fastify.log.info(`⚖️  ChismeLLM V2 — Tribunal de IAs en http://localhost:${port}`);
+  fastify.log.info(`HAZE — adversarial analysis en http://localhost:${port}`);
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);
