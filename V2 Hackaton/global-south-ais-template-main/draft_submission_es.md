@@ -2,7 +2,7 @@
 
 **HAZE** (*Hallucination-Aware Zero-sum Examination*) — Red Teaming Automatizado mediante AI Safety Debate
 
-**Autores:** [Nombres del Equipo]
+**Autores:** Samuel Blanco, Samuel Díaz, Axel Morales y Alex Novelo 
 
 **Código y Datos:** [Enlace al Repositorio de GitHub]/`API` | [Enlace al Dataset / Transcripciones]
 
@@ -17,6 +17,7 @@ Usar LLMs para descubrir vulnerabilidades suena genial, y lo es: te permite audi
 **El problema, y por qué falla.** Cuando le pides a un LLM que "encuentre la vulnerabilidad", el modelo ya da por hecho que el fallo está ahí. Es como ir al médico convencido de que estás enfermo: algo te va a encontrar. Su entrenamiento —maximizar la probabilidad de darte una respuesta útil, todo amplificado por RLHF— lo empuja a **fabricar un hallazgo positivo** aunque el código esté limpísimo. No sabe distinguir bien entre "aquí no hay nada" y "no encontré nada que encaje con lo que me pediste". Y para colmo, la sicofancia (Perez et al., 2022) le echa más leña: el modelo tiende a darte la razón. ¿Qué amenaza nos deja esto en un auditor automatizado? Dos cosas. Una: **falsos positivos y alucinaciones** que te hacen perder el tiempo y, peor aún, te quitan la confianza en la herramienta. Y dos: no hay *auto-corrección de verdad*. Un agente que piensa solo, en voz alta consigo mismo, no puede exigirse pruebas a sí mismo. Nadie le lleva la contraria.
 
 **Lo que aportamos.**
+
 1. Una **arquitectura adversarial de cuatro roles** (Atacante, Defensor, Investigador, Juez) que lleva el AI Safety via Debate al terreno de la detección de vulnerabilidades. El **Juez va aislado a propósito**, para que no se le contamine el contexto, y el **Investigador** hace de ancla con la *Verdad de Terreno*.
 2. Un **cambio de reglas en cómo se prueban las cosas**: de lo probabilístico a lo demostrativo. Aquí una vulnerabilidad solo cuenta *si y solo si* sobrevive a que la ataquen. Así, las alucinaciones caen por su propio peso.
 3. Un **protocolo de evaluación empírica** con su baseline de un solo agente, sus etiquetas de verdad de terreno y sus pruebas estadísticas para ver si de verdad bajamos los falsos positivos.
@@ -50,27 +51,32 @@ Todo esto que te conté lo construimos de verdad, y se llama **HAZE**: un monoli
 
 **La arquitectura.** Un backend en Fastify 5 (Node.js ESM) sirve dos cosas a la vez: la API REST/SSE y un frontend en HTML/CSS/JS a pelo, sin frameworks. El pipeline está partido por módulos:
 
-| Módulo | Función |
-|---|---|
-| `src/config/roles.js` | Plantilla de equipos, orden de turnos, modelos por defecto |
-| `src/services/prompts.js` | Prompts system/user por rol y esquema JSON del juez |
-| `src/services/orchestrator.js` | Motor de debate multi-ronda y parseo del veredicto |
-| `src/services/openrouter.js` | Cliente OpenRouter (streaming + JSON estructurado) |
-| `src/routes/api.js` | `GET /api/config`, `GET /api/models`, `POST /api/analyze` (SSE) |
-| `public/` | UI de debate en vivo con streaming token a token |
+
+| Módulo                         | Función                                                         |
+| ------------------------------ | --------------------------------------------------------------- |
+| `src/config/roles.js`          | Plantilla de equipos, orden de turnos, modelos por defecto      |
+| `src/services/prompts.js`      | Prompts system/user por rol y esquema JSON del juez             |
+| `src/services/orchestrator.js` | Motor de debate multi-ronda y parseo del veredicto              |
+| `src/services/openrouter.js`   | Cliente OpenRouter (streaming + JSON estructurado)              |
+| `src/routes/api.js`            | `GET /api/config`, `GET /api/models`, `POST /api/analyze` (SSE) |
+| `public/`                      | UI de debate en vivo con streaming token a token                |
+
 
 **De la teoría al código (cómo se reparten los agentes).** El prototipo de ahora monta una topología **2v2 + Juez aislado**:
 
-| Rol teórico | Rol(es) en HAZE | Equipo | Función |
-|---|---|---|---|
-| Atacante | **Analista Forense** + **Fiscal** | Acusación | Exponer evidencia técnica de patrones maliciosos; sintetizar y refutar argumentos de la defensa |
-| Defensor | **Auditor** + **Defensor** | Defensa | Explicar intención legítima; refutar acusaciones con contexto benigno y prácticas estándar |
-| Investigador | *(planificado)* | — | Aún no implementado como agente separado e imparcial |
-| Juez | **Juez** | Tribunal | Lee solo la transcripción completa; emite veredicto estructurado |
+
+| Rol teórico  | Rol(es) en HAZE                   | Equipo    | Función                                                                                         |
+| ------------ | --------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| Atacante     | **Analista Forense** + **Fiscal** | Acusación | Exponer evidencia técnica de patrones maliciosos; sintetizar y refutar argumentos de la defensa |
+| Defensor     | **Auditor** + **Defensor**        | Defensa   | Explicar intención legítima; refutar acusaciones con contexto benigno y prácticas estándar      |
+| Investigador | *(planificado)*                   | —         | Aún no implementado como agente separado e imparcial                                            |
+| Juez         | **Juez**                          | Tribunal  | Lee solo la transcripción completa; emite veredicto estructurado                                |
+
 
 Cada rol que debate va atado a un **LLM distinto** (lo configuras por rol desde la UI). Esto es clave: rompe esos fallos en cadena que aparecen cuando todo depende de un único modelo. Los turnos van alternando acusación y defensa en cada ronda: Analista Forense → Auditor → Fiscal → Defensor (de 1 a 4 rondas, por defecto 2). Los que debaten van a temperatura 0.7; el Juez, en cambio, a 0.1 y con `response_format: json_object`. Frío y metódico.
 
 **El recorrido completo, de principio a fin.**
+
 1. Pegas o subes un artefacto (máximo 24.000 caracteres; si te pasas, se recorta y te avisa con un flag).
 2. Eliges cuántas rondas de debate quieres y qué modelo de OpenRouter usa cada rol.
 3. `POST /api/analyze` te va mandando Server-Sent Events: `open` → `meta` → `round` → `turn-start` / `token` / `turn-end` → `verdict` → `done`.
@@ -110,7 +116,7 @@ HAZE es un **protocolo de verificación**: varios LLMs compiten con reglas estri
 
 **Fase 3 — El streaming hacia el cliente.** La API se apropia de la respuesta HTTP para mandar Server-Sent Events:
 
-`open` → `meta` → `round` → `turn-start` → `token*` → `turn-end` → … → `verdict` → `done`
+`open` → `meta` → `round` → `turn-start` → `token`* → `turn-end` → … → `verdict` → `done`
 
 ¿Y si el cliente se desconecta a media faena? Un `AbortController` corta de raíz las peticiones que siguieran abiertas contra OpenRouter. Sin malgastar tokens.
 
@@ -126,12 +132,14 @@ HAZE es un **protocolo de verificación**: varios LLMs compiten con reglas estri
 
 **La topología 2v2, descompuesta por funciones.**
 
-| Rol | Función técnica |
-|---|---|
-| **Analista Forense** | Detección ofensiva: patrones maliciosos, indicadores en el código |
-| **Auditor** | Contexto defensivo: uso legítimo, explicaciones benignas |
-| **Fiscal** | Síntesis argumentativa + refutación de la defensa |
-| **Defensor** | Refutación punto por punto; admite evidencia fuerte pero cuestiona intención/severidad |
+
+| Rol                  | Función técnica                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| **Analista Forense** | Detección ofensiva: patrones maliciosos, indicadores en el código                      |
+| **Auditor**          | Contexto defensivo: uso legítimo, explicaciones benignas                               |
+| **Fiscal**           | Síntesis argumentativa + refutación de la defensa                                      |
+| **Defensor**         | Refutación punto por punto; admite evidencia fuerte pero cuestiona intención/severidad |
+
 
 Un solo prompt ("encuentra el malware") lo revuelve todo: detección, contexto y juicio en la misma cabeza. HAZE coge esas tres funciones y las reparte en roles que se enfrentan entre sí.
 
@@ -145,13 +153,15 @@ HAZE le entra a la seguridad de la IA por dos lados que se complementan.
 
 **Seguridad *con* IA (usar LLMs para auditar software).**
 
-| Fallo del single-agent | Mitigación en HAZE |
-|---|---|
-| Sesgo de confirmación: inventar hallazgos para satisfacer el prompt | Adversario dedicado (Defensa) refuta activamente las afirmaciones |
-| Confianza no calibrada ("~80% seguro") | Veredicto JSON estructurado: `verdict`, `confidence`, `keyFindings`, `reasoning` |
-| Un solo modelo, un solo punto ciego | Roles multi-modelo con errores parcialmente descorrelacionados |
-| Sin trazabilidad | Transcripción completa auditable por humanos |
-| Auto-corrección intrínseca débil | Información cruzada adversarial en múltiples rondas |
+
+| Fallo del single-agent                                              | Mitigación en HAZE                                                               |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Sesgo de confirmación: inventar hallazgos para satisfacer el prompt | Adversario dedicado (Defensa) refuta activamente las afirmaciones                |
+| Confianza no calibrada ("~80% seguro")                              | Veredicto JSON estructurado: `verdict`, `confidence`, `keyFindings`, `reasoning` |
+| Un solo modelo, un solo punto ciego                                 | Roles multi-modelo con errores parcialmente descorrelacionados                   |
+| Sin trazabilidad                                                    | Transcripción completa auditable por humanos                                     |
+| Auto-corrección intrínseca débil                                    | Información cruzada adversarial en múltiples rondas                              |
+
 
 HAZE es **red teaming automatizado de artefactos**: te permite revisar a escala paquetes sospechosos, PRs, dependencias o snippets antes de hacer merge o desplegar. Antes de que el problema entre en casa, vaya.
 
@@ -204,19 +214,19 @@ Si esto se valida, baja los falsos positivos sin cargarse el recall y te deja un
 
 ## Referencias
 
-Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., … Kaplan, J. (2022). *Constitutional AI: Harmlessness from AI feedback*. arXiv. https://arxiv.org/abs/2212.08073
+Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., … Kaplan, J. (2022). *Constitutional AI: Harmlessness from AI feedback*. arXiv. [https://arxiv.org/abs/2212.08073](https://arxiv.org/abs/2212.08073)
 
-Du, Y., Li, S., Torralba, A., Tenenbaum, J. B., & Mordatch, I. (2023). *Improving factuality and reasoning in language models through multiagent debate*. arXiv. https://arxiv.org/abs/2305.14325
+Du, Y., Li, S., Torralba, A., Tenenbaum, J. B., & Mordatch, I. (2023). *Improving factuality and reasoning in language models through multiagent debate*. arXiv. [https://arxiv.org/abs/2305.14325](https://arxiv.org/abs/2305.14325)
 
-Ganguli, D., Lovitt, L., Kernion, J., Askell, A., Bai, Y., Kadavath, S., … Clark, J. (2022). *Red teaming language models to reduce harms: Methods, scaling behaviors, and lessons learned*. arXiv. https://arxiv.org/abs/2209.07858
+Ganguli, D., Lovitt, L., Kernion, J., Askell, A., Bai, Y., Kadavath, S., … Clark, J. (2022). *Red teaming language models to reduce harms: Methods, scaling behaviors, and lessons learned*. arXiv. [https://arxiv.org/abs/2209.07858](https://arxiv.org/abs/2209.07858)
 
-Irving, G., Christiano, P., & Amodei, D. (2018). *AI safety via debate*. arXiv. https://arxiv.org/abs/1805.00899
+Irving, G., Christiano, P., & Amodei, D. (2018). *AI safety via debate*. arXiv. [https://arxiv.org/abs/1805.00899](https://arxiv.org/abs/1805.00899)
 
-Khan, A., Hughes, J., Valentine, D., Ruis, L., Sachan, K., Radhakrishnan, A., … Perez, E. (2024). *Debating with more persuasive LLMs leads to more truthful answers*. arXiv. https://arxiv.org/abs/2402.06782
+Khan, A., Hughes, J., Valentine, D., Ruis, L., Sachan, K., Radhakrishnan, A., … Perez, E. (2024). *Debating with more persuasive LLMs leads to more truthful answers*. arXiv. [https://arxiv.org/abs/2402.06782](https://arxiv.org/abs/2402.06782)
 
-Perez, E., Huang, S., Song, F., Cai, T., Ring, R., Aslanides, J., … Irving, G. (2022). *Red teaming language models with language models*. arXiv. https://arxiv.org/abs/2202.03286
+Perez, E., Huang, S., Song, F., Cai, T., Ring, R., Aslanides, J., … Irving, G. (2022). *Red teaming language models with language models*. arXiv. [https://arxiv.org/abs/2202.03286](https://arxiv.org/abs/2202.03286)
 
-Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., … Stoica, I. (2023). *Judging LLM-as-a-judge with MT-Bench and Chatbot Arena*. arXiv. https://arxiv.org/abs/2306.05685
+Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., … Stoica, I. (2023). *Judging LLM-as-a-judge with MT-Bench and Chatbot Arena*. arXiv. [https://arxiv.org/abs/2306.05685](https://arxiv.org/abs/2306.05685)
 
 ---
 

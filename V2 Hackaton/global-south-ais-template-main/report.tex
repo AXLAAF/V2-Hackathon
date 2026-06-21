@@ -1,0 +1,647 @@
+% =====================================================================
+% HAZE — Research report (Global South AI Safety Hackathon 2026)
+% Based on the identity of template2.tex (Apart submission template):
+%   - documentclass article, Times typography (ptm), US Letter 612x792pt
+% Rewritten as a standard, compilable LaTeX document (pdflatex).
+% =====================================================================
+\documentclass[10pt]{article}
+
+% --- Encoding and language ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+% --- Times typography (as in template2.tex: ptm family) ---
+\usepackage{mathptmx}
+
+% --- Geometry: US Letter (612 x 792 pt), as in the template ---
+\usepackage[letterpaper,margin=1in]{geometry}
+
+% --- Utilities ---
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+% Fixed-width, left-justified columns for tables
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+% =====================================================================
+\title{\textbf{HAZE: Adversarial Multi-Agent Scrutiny to Cut\\
+False Positives in LLM-Based Software Auditing}}
+
+\author{
+  Samuel Blanco \quad Samuel Díaz \quad Axel Morales \quad Alex Novelo \\[0.3em]
+  \small AI Safety México --- Global South AI Safety Hackathon 2026
+}
+\date{}
+
+% =====================================================================
+\begin{document}
+\maketitle
+
+\begin{center}
+\small
+\textbf{HAZE} (\textit{Hallucination-Aware Zero-sum Examination}) --- Automated red
+teaming via AI Safety by Debate\\[0.4em]
+\textbf{Track:} AI Security $\rightarrow$ Pipeline security (API, cloud)
+$\cdot$ Responsible AI $\rightarrow$ Hallucination mitigation and behavioral
+auditing\\[0.2em]
+\textbf{Code:} \texttt{API/} (Fastify monolith + OpenRouter orchestrator)
+\end{center}
+
+\vspace{0.5em}
+
+% ---------------------------------------------------------------------
+\begin{abstract}
+\noindent
+The question we asked ourselves is simple: can you hand a chunk of code to several
+language models, set them arguing with each other in roles ---one accuses, one defends,
+one judges--- and have an answer pop out about whether the code is vulnerable? Or are you
+better off just trusting a single prompt?
+
+That's what we went to find out. We built \textbf{HAZE}, a protocol where several agents
+debate like in a courtroom, leaning on the idea of AI Safety by Debate (Irving et al.,
+2018). And we tested it on code where we already knew the answer. We wanted four things
+to be clear: whether it \textbf{works} and actually catches threats; whether it
+\textbf{doesn't work} and where it breaks; whether it \textbf{hallucinates} ---that is,
+makes up vulnerabilities that aren't there---; and whether the whole thing \textbf{gets
+better or worse} as you turn up the level of reasoning (a single agent, several debating,
+more rounds, more powerful models).
+
+The prototype lives in \texttt{API/}: a 2v2 topology plus an isolated Judge, all running
+on OpenRouter. The final numbers are still in the oven. What we do walk you through here
+is the design, what we saw in the first runs, and where the conclusions point. No
+sugar-coating: we report the wins, but also the failures and the times the system started
+to hallucinate.
+\end{abstract}
+
+% ---------------------------------------------------------------------
+\section{Introduction}
+
+\subsection{The problem and why it matters for AI Safety}
+
+More and more teams are using LLMs for security work: reviewing a PR, eyeballing a
+\texttt{setup.py} that smells off, scanning dependencies. And it makes total sense,
+especially where there's no AppSec team with a budget ---which is the norm across much of
+the Global South. The trouble shows up when you tell the model: ``find me the malware.''
+Something funny happens there. The model already comes trained to please you ---the famous
+RLHF rewards helpful, affirmative answers--- so it confuses two things that aren't the
+same: \textit{``there's nothing weird here''} and \textit{``I didn't find what you asked
+me for''} (Perez et al., 2022). The result: it hands you a finding even when the code is
+spotless.
+
+And why does this matter for AI safety? On two fronts.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Security \textit{with} AI:} if your automated pipeline spits out false
+  positives, people stop paying attention. Alert fatigue, blocks that shouldn't have
+  happened, and in the end nobody trusts the tool.
+  \item \textbf{Security \textit{of} AI:} the same debate trick works for auditing a
+  model's \textit{behavior} ---jailbreaks, prompt injection--- and that drops you right
+  into \textit{scalable oversight}: supervising systems that may be smarter than the one
+  watching them.
+\end{enumerate}
+
+\subsection{Hypothesis and research questions}
+
+\textbf{Our bet:} a handful of models with opposing roles, arguing with each other, will
+read the code and decide whether it's dangerous better than a single model working solo.
+
+From there come four questions this report has to answer:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}c L{5cm} X@{}}
+\toprule
+\# & Question & What we observe \\
+\midrule
+\textbf{Q1} & Is it \textbf{possible} to detect vulnerabilities with roles? & Correct
+verdicts on malicious artifacts (\texttt{MALICIOUS} when appropriate) \\
+\textbf{Q2} & Is it \textbf{not possible} in some cases? & False negatives,
+\texttt{INCONCLUSIVE} verdicts, undetected malicious code \\
+\textbf{Q3} & Does the system \textbf{hallucinate}? & Made-up findings, cited code lines
+that don't exist, fabricated CVEs or functions \\
+\textbf{Q4} & Does it get \textbf{better or worse} at different thinking levels? &
+Comparing configurations with different reasoning depth (see §3.3) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{What we contributed (new during the hackathon)}
+
+There's plenty of prior work on multi-agent debate and LLM red teaming, and we lean on
+it. But what we put together over these three days is ours:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{HAZE as a research artifact}, reproducible and open: 2v2 + Judge
+  topology. It's not a product we're trying to sell you.
+  \item \textbf{A framework to measure} the four questions above, with its single-model
+  baseline and the variation of \textit{thinking level}.
+  \item \textbf{Prompts with a burden of proof}: they're forbidden from inventing code
+  and required to cite exact lines and functions.
+  \item \textbf{The catalog of what went wrong}: self-confirmation when the accuser also
+  judged, ungrounded hallucinations, and the Investigator role we never got around to.
+\end{enumerate}
+
+% ---------------------------------------------------------------------
+\section{Related Work}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3cm} L{3.5cm} X@{}}
+\toprule
+Line of work & Key reference & Relation to HAZE \\
+\midrule
+AI Safety by Debate & Irving et al. (2018) & Theoretical frame: verifying is easier than
+generating; lying doesn't pay off at equilibrium \\
+Persuasive debate & Khan et al. (2024) & More reliable judges when the debaters are more
+persuasive \\
+Multi-agent debate & Du et al. (2023) & Improves factuality over a single model in
+chain-of-thought \\
+LLM red teaming & Perez et al. (2022); Ganguli et al. (2022) & Scales the
+\textit{generation} of attacks; \textit{verification} usually stays with humans or
+classifiers \\
+LLM-as-a-Judge & Zheng et al. (2023) & Viability of the synthetic judge; commitment and
+sycophancy biases $\rightarrow$ motivate isolating the Judge \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{The gap we fill.} Look: classic red teaming is busy \textit{provoking} failures.
+Classic debate work chases open-domain truth. Each on its own. We glue the two together
+for one very concrete pipeline-security problem: cutting false positives when you audit
+code automatically, by putting agents to argue under rules.
+
+% ---------------------------------------------------------------------
+\section{Methods}
+
+\subsection{Theoretical protocol (four roles)}
+
+In the ideal design there are four roles, each with its part to play:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3cm} X@{}}
+\toprule
+Role & Function \\
+\midrule
+\textbf{Attacker} & Vulnerability hypothesis + traceable exploitation vector \\
+\textbf{Defender} & Rebuttal with existing mitigations and benign context \\
+\textbf{Investigator} & Anchoring to ground truth (CVEs, library semantics) ---
+\textit{planned} \\
+\textbf{Judge} & Binary/ternary verdict based only on the transcript \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The golden rule: a vulnerability only counts if it survives rebuttal and there's real
+evidence in the code backing it up. If it doesn't survive the attack, it doesn't get in.
+
+\subsection{Current implementation (\texttt{API/})}
+
+What we actually built during the hackathon is a \textbf{2v2 + isolated Judge} topology,
+running on a Node.js monolith (Fastify 5):
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3cm} X L{3cm}@{}}
+\toprule
+Theoretical role & HAZE implementation & Team \\
+\midrule
+Attacker & Forensic Analyst + Prosecutor & Prosecution \\
+Defender & Auditor + Defense Counsel & Defense \\
+Investigator & --- (pending) & --- \\
+Judge & Tribunal Judge & Tribunal \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{The turn order} (\texttt{TURN\_ORDER}) alternates sides: Forensic Analyst
+$\rightarrow$ Auditor $\rightarrow$ Prosecutor $\rightarrow$ Defense Counsel. By default
+it's 2 rounds, up to a maximum of 4. And here's the trick: each role runs on a
+\textbf{different model} (you pick it in OpenRouter). What for? So that if one model gets
+it wrong, it doesn't drag the others in the same direction.
+
+\textbf{Execution pipeline:}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Input:} a text artifact (code, manifest, documentation), max. 24,000
+  characters.
+  \item \textbf{Debate:} for each turn, \texttt{buildDebaterMessages()} assembles system
+  + user with the artifact and the accumulated transcript; \texttt{streamChat()} at
+  temperature 0.7, max. 700 tokens.
+  \item \textbf{Shared state:} \texttt{transcript[]} append-only; no hidden memory
+  between turns.
+  \item \textbf{Verdict:} the Judge receives only the artifact + transcript (it never
+  debated); \texttt{chat()} is called at temperature 0.1 with \texttt{response\_format:
+  json\_object}.
+  \item \textbf{JSON output:} \texttt{verdict}
+  (\texttt{MALICIOUS}/\texttt{NOT\_MALICIOUS}/\texttt{INCONCLUSIVE}),
+  \texttt{confidence}, \texttt{riskLevel}, \texttt{keyFindings}, \texttt{winningTeam},
+  \texttt{reasoning}.
+\end{enumerate}
+
+\textbf{Reproducibility:} \texttt{npm install}, \texttt{.env} with
+\texttt{OPENROUTER\_API\_KEY}, \texttt{npm run dev} $\rightarrow$
+\texttt{http://localhost:4747}. Endpoints: \texttt{GET /api/config}, \texttt{GET
+/api/models}, \texttt{POST /api/analyze} (SSE).
+
+\subsection{Experimental design: thinking levels}
+
+To answer \textbf{Q4} (does this get better or worse as you turn up the reasoning?) we
+set up a ladder of configurations, from the dumbest to the most sophisticated:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.2cm} L{4.5cm} X@{}}
+\toprule
+Level & Configuration & Interpretation \\
+\midrule
+\textbf{L0 --- Reactive} & A single agent, one prompt (``is it malicious?'') & Minimal
+reasoning; no rebuttal \\
+\textbf{L1 --- Short debate} & 2v2 + Judge, \textbf{1 round} & Separated roles, little
+cross-examination \\
+\textbf{L2 --- Standard debate} & 2v2 + Judge, \textbf{2 rounds} (default) & Active
+rebuttal; the prototype's configuration \\
+\textbf{L3 --- Deep debate} & 2v2 + Judge, \textbf{4 rounds} & Maximum scrutiny within
+the protocol \\
+\textbf{L4 --- Capable models} & Same rounds, more powerful models per role & More
+reasoning capacity per agent \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Every chunk of code goes through \textbf{all} the configurations, and we compare what
+each one says against the answer we already knew.
+
+\textbf{The baseline (L0)} is the simplest thing you can think of: a single agent, a
+prompt along the lines of ``hey, is this malicious?'', on the same inputs. It's our
+yardstick. If the role system can't beat this, it adds nothing.
+
+\textbf{Evaluation set:}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.5cm} L{2.5cm} X@{}}
+\toprule
+Artifact & Expected label & Purpose \\
+\midrule
+\texttt{suspicious\_installer.py} & Malicious & \texttt{PostInstall} with base64
+exfiltration, remote download and \texttt{exec(stage2)} \\
+\texttt{benign\_utils.py} & Benign & JSON/checksum/slugify utilities with no network or
+dynamic execution \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Metrics per question:}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4cm} X@{}}
+\toprule
+Question & Main metric \\
+\midrule
+Q1 (is it possible?) & \textbf{Recall} on malicious artifacts \\
+Q2 (is it not possible?) & \textbf{False negatives} and \texttt{INCONCLUSIVE} rate \\
+Q3 (does it hallucinate?) & \textbf{Hallucination rate} ---claims with no backing in the
+code--- and \textbf{FPR} on benign artifacts \\
+Q4 (better/worse?) & $\Delta$ metrics across L0$\rightarrow$L1$\rightarrow$L2$
+\rightarrow$L3$\rightarrow$L4; McNemar's test or bootstrap (95\% CI) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{What we tried that fell flat}
+
+Before landing on the current design, we took a few knocks. We jot them down here because
+they teach as much as what worked:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4.2cm} L{4.2cm} X@{}}
+\toprule
+Attempt & Outcome & Lesson \\
+\midrule
+Same agent as accuser and judge & Systematic self-confirmation & Strict separation of
+roles \\
+Debate with no obligation to cite code & Plausible but non-executable exploits & Burden
+of proof in the prompts \\
+A single model for all roles & Cascading errors (hallucination $\rightarrow$ weak
+rebuttal) & Multi-model per role \\
+Investigator role with CVE lookup & Not completed within hackathon time & Prioritize the
+core 2v2 + Judge protocol \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ---------------------------------------------------------------------
+\section{Results}
+
+\noindent\textbf{Note:} The final quantitative values are pending the full experimental
+run. The following subsections structure \textit{what} we'll report; the numbers will be
+filled in before the final submission.
+
+\subsection{Q1 --- Can it be done, yes or no?}
+
+The first thing we saw (at L2, with \texttt{suspicious\_installer.py}): \textbf{yes, it
+can}. The system catches the malicious behavior. The Prosecution goes straight for lines
+22--27 ---that's where the \texttt{urlopen} and the \texttt{exec(stage2)} live--- and the
+\texttt{\_PostInstall} hook, and it cites them over and over. With that transcript on the
+table, the Judge tends to close with \texttt{MALICIOUS} and concrete findings, not smoke.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4cm} X L{3.5cm}@{}}
+\toprule
+Configuration & \texttt{suspicious\_installer.py} & Expected verdict \\
+\midrule
+L0 (single-agent) & [pending] & \texttt{MALICIOUS} \\
+L2 (2 rounds, 2v2) & Qualitative hit & \texttt{MALICIOUS} \\
+L3 (4 rounds, 2v2) & [pending] & \texttt{MALICIOUS} \\
+\bottomrule
+\end{tabularx}
+\caption{Recall by thinking level (L0--L4) on malicious artifacts.}
+\end{table}
+
+\subsection{Q2 --- And when can't it be done?}
+
+Now the flip side. The system gets stuck, or just washes its hands, when the evidence is
+ambiguous or when the code is harmless but has patterns that \textit{look} shady.
+
+\begin{itemize}[leftmargin=*]
+  \item With \texttt{benign\_utils.py}, the Prosecution grabs onto \texttt{open()} and
+  the fact that it reads files. Patterns that, out of context, would make you raise an
+  eyebrow. If the Defense doesn't push hard enough, the Judge settles on
+  \texttt{INCONCLUSIVE} instead of saying \texttt{NOT\_MALICIOUS} with its head held
+  high.
+  \item And well-obfuscated malware, or code spread across several files, slips past us.
+  The window is 24k characters and we only look at one artifact at a time. We don't reach
+  there, not yet.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4cm} L{4cm} X@{}}
+\toprule
+Failure mode & Observed example & Likely cause \\
+\midrule
+False negative & [pending --- measure] & Insufficient debate or weak model on Defense \\
+Abstention (\texttt{INCONCLUSIVE}) & \texttt{benign\_utils.py} at L2 & Ambiguous
+evidence; Judge won't commit \\
+Out of scope & Multi-file, runtime & Limitation of the prototype, not the concept \\
+\bottomrule
+\end{tabularx}
+\caption{False-negative and \texttt{INCONCLUSIVE} rate by configuration.}
+\end{table}
+
+\subsection{Q3 --- Does it hallucinate?}
+
+Yes. It hallucinates. Especially when there's nobody to push back.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4.5cm} L{2.5cm} X@{}}
+\toprule
+Condition & Hallucinates? & Example \\
+\midrule
+L0 --- single-agent on benign code & Frequent (expected) & Invents backdoors or
+nonexistent CVEs in \texttt{benign\_utils.py} \\
+L2 --- debate with burden of proof & Less frequent & The Defense rebuts claims with no
+cited line; the Judge penalizes empty arguments \\
+Accuser = Judge (failed design) & Always & Self-confirmation of invented findings \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+How do we decide something is a hallucination? We label it by hand in the transcripts,
+with three crystal-clear signals:
+
+\begin{enumerate}[leftmargin=*]
+  \item It cites a line or function that \textbf{isn't} in the code.
+  \item It describes an attack the code \textbf{doesn't allow}.
+  \item It brings up a CVE, library, or dependency that \textbf{doesn't appear} anywhere
+  in the artifact.
+\end{enumerate}
+
+\textbf{Table 3.} Hallucination rate and FPR: L0 vs. L2 vs. L3 on benign artifacts.
+
+\textbf{Figure 1.} FPR and hallucination rate by thinking level. \textit{Caption: We
+expect adversarial debate (L1--L3) to reduce hallucinations relative to the single agent
+(L0).}
+
+\subsection{Q4 --- Does it get better or worse as you turn up the thinking?}
+
+Here's what we expect to see (and what the data will have to confirm or knock down):
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.5cm} X X@{}}
+\toprule
+Transition & Expected effect on Q3 (hallucinations) & Expected effect on Q1 (detection) \\
+\midrule
+L0 $\rightarrow$ L1 & \textbf{Better} ---the Defense rebuts spurious claims & Neutral or
+slight improvement \\
+L1 $\rightarrow$ L2 & \textbf{Better} ---more rounds = more rebuttal & Better ---stronger
+accusation \\
+L2 $\rightarrow$ L3 & Marginal improvement; risk of \textbf{over-arguing} & Marginal
+improvement \\
+L2 $\rightarrow$ L4 (more capable models) & Better at precise citations & Better on
+obfuscated code \\
+L3 $\rightarrow$ too many rounds & Possible \textbf{worsening} ---agents repeat arguments
+& Cost $\uparrow$ with no gain \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Figure 2.} FPR and recall curve as the thinking level increases
+(L0$\rightarrow$L4).
+
+\textbf{Figure 3.} Ablation: without the isolated Judge; without the Defender role ---to
+isolate which component of the role system contributes most.
+
+% ---------------------------------------------------------------------
+\section{Discussion}
+
+\subsection{Implications for AI Safety}
+
+Here's something we find rather neat. The Judge doesn't invent the audit from scratch
+---which is exactly where a model starts hallucinating---, it only has to decide which of
+the two sides held up best under fire. You shift the burden of proving onto the debaters.
+And that's \textit{scalable oversight} in its purest form: a pattern you can reuse to
+verify safety claims, whether in code or, with little change, in a model's behavior (the
+``artifact'' could just as easily be a jailbreak transcript).
+
+And one detail that's no small thing for teams in Latin America: since everything goes
+through OpenRouter, you don't need a GPU on your machine. You run the protocol from a
+plain old laptop. Which was exactly what the hackathon context called for.
+
+\subsection{Methodological limitations}
+
+Let's be honest about what's shaky:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{No Investigator.} We don't query CVEs, advisories, or external
+  databases. All the ``ground truth'' stays inside the artifact's text, and that's thin.
+  \item \textbf{The Judge is also an LLM.} It shares a family of failures with the
+  debaters. We isolate it structurally, but that doesn't guarantee it's truly
+  independent.
+  \item \textbf{The window is small.} 24k characters, one file, no looking at the code
+  running live.
+  \item \textbf{It costs more.} Four roles times N rounds plus the Judge burn quite a few
+  more tokens and time than a single prompt. More eyes, bigger bill.
+  \item \textbf{Everything in Spanish.} The prompts are in Spanish and we didn't test
+  whether this generalizes to other languages.
+  \item \textbf{We take an asymmetry on faith.} Irving et al.'s (2018) ---that verifying
+  is easier than generating--- we assume in this domain, but it would have to be shown
+  with data.
+\end{enumerate}
+
+\subsection{Unaddressed threats}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Collusion} between agents on different sides.
+  \item \textbf{Prompt injection} from the audited artifact into the debaters.
+  \item \textbf{Distributed vulnerabilities} that require several files or runtime state.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Limitations and Dual Use}
+
+\subsection{Risks of misuse}
+
+We've got to talk about how this can be used for ill, because it can. An attacker could
+keep tweaking their code, variant after variant, until HAZE tells them
+\texttt{NOT\_MALICIOUS}. In other words, use our tool as a ``does my malware slip through
+yet?'' detector. Also the other way around: firing off automated \texttt{MALICIOUS}
+verdicts to wreck the reputation of legitimate software, if someone publishes them
+without a human reviewing first.
+
+How do we put the brakes on it? The verdict \textbf{helps decide, it doesn't decide}. It
+always has to pass through human eyes before blocking a deployment or pointing a finger at
+anyone. And please: don't publish your API keys and don't leave an open instance with no
+authentication.
+
+\subsection{Future work}
+
+\begin{itemize}[leftmargin=*]
+  \item Implement the \textbf{Investigator} role with NVD/OSV lookup.
+  \item Full quantitative evaluation with statistical significance.
+  \item Judges from different model families (cross-model judging).
+  \item Extend to auditing agent behavior and whole repositories.
+  \item Calibrate \texttt{confidence} against ground truth.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Conclusion}
+
+We started with a doubt: does a role system hunt vulnerabilities better than a model on
+its own? Here's what we've got so far, no frills:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Yes, it can.} When the code is clearly bad, the debate gets to the point
+  ---\texttt{urlopen}, \texttt{exec}, exfiltration--- and the Judge closes with real
+  arguments.
+  \item \textbf{But not always.} Benign, ambiguous code makes the system hang in doubt;
+  and what's obfuscated or spread across several files slips past us, for now.
+  \item \textbf{And yes, it hallucinates.} Especially the lone agent (L0). Debate with a
+  burden of proof brings hallucinations down a good stretch, though it doesn't kill them
+  off entirely.
+  \item \textbf{More thinking helps, up to a point.} Jumping from L0 to L2 clears out
+  false positives. Adding more rounds or more powerful models (L3--L4) can add up, but
+  there comes a moment when you pay more and gain little.
+\end{enumerate}
+
+Let's be clear: HAZE isn't a tool to drop into production tomorrow. It's an experiment,
+with its infrastructure open, set up to answer these four questions with data in hand.
+What comes next is running the full L0--L4 battery and putting the numbers on the table,
+with their significance tests and all.
+
+% ---------------------------------------------------------------------
+\section*{Code and Data}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Repository:} \texttt{API/} --- Fastify backend, orchestrator
+  (\texttt{src/services/orchestrator.js}), prompts (\texttt{src/services/prompts.js}),
+  roles (\texttt{src/config/roles.js}), SSE UI (\texttt{public/}).
+  \item \textbf{Example artifacts:} \texttt{API/examples/suspicious\_installer.py},
+  \texttt{API/examples/benign\_utils.py}.
+  \item \textbf{Transcripts:} [pending --- to link after the experimental run].
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section*{Author Contributions}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4cm} X@{}}
+\toprule
+Author & Contribution \\
+\midrule
+Samuel Blanco & [architecture / orchestration] \\
+Samuel Díaz & [evaluation / baselines] \\
+Axel Morales & [API implementation / prompts] \\
+Alex Novelo & [writing / analysis] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ---------------------------------------------------------------------
+\section*{References}
+
+\begin{itemize}[leftmargin=*,label={}]
+  \item Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., \dots\
+  Kaplan, J. (2022). \textit{Constitutional AI: Harmlessness from AI feedback}. arXiv.
+  \url{https://arxiv.org/abs/2212.08073}
+  \item Du, Y., Li, S., Torralba, A., Tenenbaum, J. B., \& Mordatch, I. (2023).
+  \textit{Improving factuality and reasoning in language models through multiagent
+  debate}. arXiv. \url{https://arxiv.org/abs/2305.14325}
+  \item Ganguli, D., Lovitt, L., Kernion, J., Askell, A., Bai, Y., Kadavath, S., \dots\
+  Clark, J. (2022). \textit{Red teaming language models to reduce harms: Methods, scaling
+  behaviors, and lessons learned}. arXiv. \url{https://arxiv.org/abs/2209.07858}
+  \item Irving, G., Christiano, P., \& Amodei, D. (2018). \textit{AI safety via debate}.
+  arXiv. \url{https://arxiv.org/abs/1805.00899}
+  \item Khan, A., Hughes, J., Valentine, D., Ruis, L., Sachan, K., Radhakrishnan, A.,
+  \dots\ Perez, E. (2024). \textit{Debating with more persuasive LLMs leads to more
+  truthful answers}. arXiv. \url{https://arxiv.org/abs/2402.06782}
+  \item Perez, E., Huang, S., Song, F., Cai, T., Ring, R., Aslanides, J., \dots\ Irving,
+  G. (2022). \textit{Red teaming language models with language models}. arXiv.
+  \url{https://arxiv.org/abs/2202.03286}
+  \item Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., \dots\
+  Stoica, I. (2023). \textit{Judging LLM-as-a-judge with MT-Bench and Chatbot Arena}.
+  arXiv. \url{https://arxiv.org/abs/2306.05685}
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section*{LLM Usage Statement}
+
+We used LLMs to lend us a hand with the writing, the structure, and the bibliographic
+framing. And, on top of that, they're the very beast we study: the agents debating inside
+HAZE are LLMs. Everything technical, the references, and ---when we have them--- the
+results, we reviewed by hand. A heads-up: the numbers in Section 4 are still pending
+experiments, so don't cite them until they're measured and run through the significance
+tests.
+
+\end{document}
