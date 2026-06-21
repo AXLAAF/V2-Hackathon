@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Vulnerabilidades/Guia_Generacion_Dataset_Fable5.md",
+                "file": "vulnerabilities/CVE-2026-10520/packages/README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Guia_Generacion_Dataset_Fable5"
+              "title": "README"
             }
           }
         ],
@@ -204,16 +204,17 @@
     "vulnerabilities/CVE-2026-10520/code/patched/__pycache__",
     "vulnerabilities/CVE-2026-10520/code/vulnerable/__pycache__/diagnostic_api.cpython-314.pyc",
     "vulnerabilities/CVE-2026-10520/code/vulnerable/__pycache__",
+    "vulnerabilities/CVE-2026-44815/documented/vulnerable/dhcp_client_parser.c",
+    "vulnerabilities/CVE-2026-32625/documented/vulnerable/mcp_manager.js",
+    "vulnerabilities/CVE-2026-5076/documented/vulnerable/armember_reset.php",
+    "vulnerabilities/CVE-2026-50751/documented/vulnerable/ike_auth.c",
+    "vulnerabilities/CVE-2026-10520/documented/vulnerable/diagnostic_api.py",
+    "vulnerabilities/CVE-2026-53435/documented/vulnerable/ConfigParser.java",
+    "vulnerabilities/CVE-2026-41089/documented/vulnerable/cldap_parser.c",
+    "Vulnerabilidades/Guia_Generacion_Dataset_Fable5.md",
     "vulnerabilities/CVE-2026-44815/packages/README.md",
-    "vulnerabilities/CVE-2026-44815/packages/Makefile",
-    "vulnerabilities/CVE-2026-44815/code/patched/dhcp_client_parser.c",
-    "vulnerabilities/CVE-2026-44815/code/vulnerable/dhcp_client_parser.c",
     "vulnerabilities/CVE-2026-32625/packages/README.md",
-    "vulnerabilities/CVE-2026-32625/packages/package.json",
-    "vulnerabilities/CVE-2026-32625/code/patched/mcp_manager.js",
-    "vulnerabilities/CVE-2026-32625/code/vulnerable/mcp_manager.js",
     "vulnerabilities/CVE-2026-5076/packages/README.md",
-    "vulnerabilities/CVE-2026-5076/code/patched/armember_reset.php",
     "vulnerabilities/CVE-2026-50751/packages/README.md",
     "vulnerabilities/CVE-2026-10520/packages/README.md",
     "vulnerabilities/CVE-2026-53435/packages/README.md",
@@ -221,7 +222,6 @@
     "vulnerabilities/CVE-2026-24061/packages/README.md",
     "Vulnerabilidades/10 vulnerabilidades recientes con PoC y documentación técnica.md",
     "global-south-ais-template-main/draft_submission_es.md",
-    "Vulnerabilidades/Guia_Generacion_Dataset_Fable5.md",
     "AI Control through Majority Voting - UIAA.md",
     "global-south-ais-template-main/README.md",
     "global-south-ais-template-main/draft_submission.md",

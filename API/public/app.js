@@ -1,4 +1,4 @@
-// ChismeLLM V2 — Frontend del tribunal de IAs.
+// HAZE — Frontend del tribunal de IAs.
 
 const $ = (id) => document.getElementById(id);
 const lanes = { acusacion: $('lane-acusacion'), defensa: $('lane-defensa') };
