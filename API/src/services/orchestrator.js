@@ -54,7 +54,13 @@ function parseVerdict(text, model) {
   if (!candidate) return fallback;
   try {
     const parsed = JSON.parse(candidate);
-    return { ...fallback, ...parsed, model };
+    const result = { ...fallback, ...parsed, model };
+    // Si el juez dice NO_MALICIOSO pero asignó riesgo CRITICO o ALTO, corregir a VULNERABLE.
+    if (result.verdict === 'NO_MALICIOSO' && ['CRITICO', 'ALTO'].includes(result.riskLevel)) {
+      result.verdict = 'VULNERABLE';
+      result.reasoning = `[Veredicto corregido automáticamente: riesgo ${result.riskLevel} es incompatible con NO_MALICIOSO] ${result.reasoning}`;
+    }
+    return result;
   } catch {
     return fallback;
   }

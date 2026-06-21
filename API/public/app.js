@@ -9,6 +9,7 @@ let running = false;
 const TEAM_LABEL = { acusacion: 'acusacion', defensa: 'defensa', tribunal: 'tribunal' };
 const VERDICT_LABEL = {
   MALICIOSO:    'MALICIOSO',
+  VULNERABLE:   'VULNERABLE',
   NO_MALICIOSO: 'NO MALICIOSO',
   INCONCLUSO:   'INCONCLUSO',
 };
