@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>⚖️ ChismeLLM V2 — Tribunal de IAs</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>⚖️ ChismeLLM <span class="v">V2</span></h1>
+      <p class="tagline">
+        Tribunal adversarial de IAs: la <strong class="t-acu">Acusación</strong> vs la
+        <strong class="t-def">Defensa</strong> debaten si tu artefacto es malicioso.
+      </p>
+    </header>
+
+    <main class="layout">
+      <!-- Panel de configuración -->
+      <section class="panel setup" id="setup">
+        <h2>1 · El artefacto a juicio</h2>
+        <label class="field">
+          <span>Nombre del archivo</span>
+          <input id="filename" type="text" placeholder="ej. installer.py" />
+        </label>
+        <div class="field">
+          <div class="file-row">
+            <span>Código o documentación</span>
+            <label class="upload-btn">
+              📁 Subir archivo
+              <input id="fileInput" type="file" hidden />
+            </label>
+          </div>
+          <textarea
+            id="artifact"
+            rows="12"
+            placeholder="Pega aquí el código, la dependencia o la documentación a analizar…"
+          ></textarea>
+          <small id="artifactMeta" class="muted"></small>
+        </div>
+
+        <h2>2 · El jurado de IAs</h2>
+        <label class="field">
+          <span>Rondas de debate: <strong id="roundsLabel">2</strong></span>
+          <input id="rounds" type="range" min="1" max="4" value="2" />
+        </label>
+        <div id="roleConfig" class="role-config"></div>
+
+        <button id="startBtn" class="cta">⚖️ Iniciar juicio</button>
+        <p id="status" class="status"></p>
+      </section>
+
+      <!-- Sala del tribunal -->
+      <section class="panel courtroom">
+        <h2 class="courtroom-title">Sala del tribunal</h2>
+        <div id="verdict" class="verdict hidden"></div>
+        <div class="arena">
+          <div class="column col-acu">
+            <div class="col-head t-acu">🔴 Acusación</div>
+            <div id="lane-acusacion" class="lane"></div>
+          </div>
+          <div class="column col-def">
+            <div class="col-head t-def">🔵 Defensa</div>
+            <div id="lane-defensa" class="lane"></div>
+          </div>
+        </div>
+        <div id="emptyState" class="empty-state">
+          La sala está vacía. Configura el caso y pulsa <em>Iniciar juicio</em>.
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
