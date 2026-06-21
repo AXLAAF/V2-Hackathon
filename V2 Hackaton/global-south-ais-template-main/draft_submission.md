@@ -8,47 +8,47 @@
 
 ## Abstract
 
-Single-agent Large Language Model (LLM) auditors are increasingly used to find vulnerabilities in code and in AI systems, but they suffer from a structural epistemic flaw: the same generative process that *finds* a flaw is biased toward *fabricating* one to satisfy the prompt, producing high rates of false positives (hallucinated CVEs, non-instantiable attack vectors, imaginary sanitizations). We propose an **Automated Red Teaming** protocol that reframes vulnerability detection from *single-shot generation* to *structured adversarial scrutiny*, grounded in **AI Safety via Debate** (Irving et al., 2018). Four LLM agents play a cross-examination game: an **Attacker** proposes a vulnerability hypothesis with a traceable exploit vector; a **Defender** attempts to refute it by appealing to existing sanitizations and mitigations; an unbiased **Investigator** anchors the debate to *Ground Truth* (real CVEs, library semantics, source-code evidence); and an isolated **Judge** evaluates the transcript and issues a calibrated verdict (Confirmed Vulnerability vs. False Positive). This shifts the evidentiary regime from probabilistic confidence ("~80% sure there is a bug") to logical burden-of-proof ("the Attacker traced an exploit the Defender could not mitigate"). We evaluate against a single-agent baseline on a ground-truth-labeled set, measuring precision, recall, and false-positive rate, and report statistical significance of observed gains. Our central hypothesis is that adversarial multi-agent scrutiny reduces false positives without sacrificing recall, yielding verdicts whose reliability approaches that of a human security reviewer.
+Everyone's reaching for a single LLM to hunt down vulnerabilities in code and in AI systems. It sort of works, but it carries a deep crack: the same model that *finds* a flaw is happy to *make one up* just to please you. The result is a pile of false positives — hallucinated CVEs, attack vectors you can't run, imaginary sanitizations. We take a different route with an **Automated Red Teaming** protocol built on *structured adversarial scrutiny*, grounded in **AI Safety via Debate** (Irving et al., 2018). Four LLM agents argue like in a courtroom: an **Attacker** proposes a vulnerability and traces the exploit; a **Defender** tries to knock it down with the protections that already exist; an unbiased **Investigator** anchors everything to *Ground Truth* (real CVEs, library semantics, source-code evidence); and an isolated **Judge** reads the transcript and rules — Confirmed Vulnerability or False Positive. The mindset changes: we stop trusting an "I'm 80% sure there's a bug" and start demanding that a traced exploit survive refutation. We test against a single-agent baseline on a ground-truth-labeled set, measuring precision, recall, and false-positive rate, and we report statistical significance. Our hypothesis is straightforward: adversarial multi-agent scrutiny cuts false positives without wrecking recall, leaving verdicts that get close to what a human security reviewer would say.
 
 ## 1. Introduction
 
-Automated vulnerability discovery with LLMs is attractive because it scales auditing across large codebases and across AI models themselves. However, the dominant *single-agent* paradigm is epistemically fragile.
+Using LLMs to discover vulnerabilities sounds great, and it is: you get to audit massive codebases, even the AI models themselves, without dying in the attempt. But the approach that rules today —the *single-agent* one— springs leaks where you least expect them.
 
-**Problem and failure mode.** When an LLM is instructed to "find the vulnerability," it conditions on a posterior that presupposes the flaw exists. The training objective—maximize the likelihood of a helpful continuation, reinforced by RLHF—creates systematic pressure to **manufacture a positive finding** even on secure code. The model does not robustly distinguish "there is no vulnerability" from "I found no vulnerability satisfying the prompt," and sycophancy (Perez et al., 2022) amplifies confirmation of the requester's implicit hypothesis. The resulting **threat model** for an automated auditor is twofold: (i) **false positives / hallucinations** that waste reviewer time and erode trust, and (ii) the absence of *deep self-correction* in single-shot reasoning, since a monologic agent cannot impose a burden of proof against its own intermediate premises.
+**The problem, and why it breaks.** When you tell an LLM to "find the vulnerability," the model already takes for granted that the flaw is there. It's like walking into the doctor's office convinced you're sick: something will get found. Its training —maximize the odds of giving you a helpful answer, all cranked up by RLHF— pushes it to **manufacture a positive finding** even when the code is squeaky clean. It can't really tell apart "there's nothing here" from "I found nothing that matches what you asked for." And to top it off, sycophancy (Perez et al., 2022) throws more fuel on the fire: the model tends to agree with you. So what threat does this leave us with in an automated auditor? Two things. One: **false positives and hallucinations** that waste your time and, worse, drain your trust in the tool. And two: there's no *real self-correction*. An agent that thinks alone, talking out loud to itself, can't demand proof from itself. Nobody's there to push back.
 
-**Contributions.**
-1. We design a **four-role adversarial architecture** (Attacker, Defender, Investigator, Judge) that operationalizes AI Safety via Debate for vulnerability detection, with a deliberately **isolated Judge** to prevent context contamination and an **Investigator** acting as a *Ground Truth* anchor.
-2. We formalize a **shift from a probabilistic to a demonstrative evidentiary regime**, in which a vulnerability is confirmed *iff* it survives adversarial refutation, structurally filtering hallucinations.
-3. We provide an **empirical evaluation protocol** with a single-agent baseline, ground-truth labels, and statistical significance testing of false-positive-rate reduction.
+**What we bring to the table.**
+1. A **four-role adversarial architecture** (Attacker, Defender, Investigator, Judge) that takes AI Safety via Debate into the world of vulnerability detection. The **Judge is isolated on purpose**, so its context doesn't get contaminated, and the **Investigator** acts as the anchor to *Ground Truth*.
+2. A **change in the rules of how things get proven**: from probabilistic to demonstrative. Here a vulnerability only counts *iff* it survives being attacked. That way, hallucinations fall under their own weight.
+3. An **empirical evaluation protocol** with its single-agent baseline, its ground-truth labels, and its statistical tests to see whether we really do drive down false positives.
 
 ## 2. Related Work
 
-**AI Safety via Debate.** Irving et al. (2018) introduced debate as a zero-sum game in which two agents argue opposing positions before a judge, exploiting the asymmetry that *verifying* a claim is easier than *generating* it; at equilibrium, deception is a dominated strategy. Khan et al. (2024) showed empirically that debate among more persuasive LLMs leads judges to more truthful answers, supporting the use of a synthetic judge.
+**AI Safety via Debate.** Irving et al. (2018) framed debate as a zero-sum game: two agents defend opposing positions in front of a judge. The key is a gorgeous asymmetry: *verifying* a claim is easier than *generating* it. And once you hit equilibrium, lying simply doesn't pay off. Then Khan et al. (2024) backed it up with data: when the LLMs doing the debating are more persuasive, the judges land on more truthful answers. Exactly what we needed to trust a synthetic judge.
 
-**Multi-agent reasoning.** Du et al. (2023) demonstrated that multi-agent debate improves factuality and reasoning over single-model chains of thought, evidence that adversarial cross-examination mitigates correlated errors.
+**Multi-agent reasoning.** Du et al. (2023) showed that debate among several agents improves factuality and reasoning over a single model thinking out loud. It's the proof that putting them to argue with each other smooths out the errors they'd otherwise all make at once.
 
-**LLM-based red teaming.** Perez et al. (2022) used LLMs to red-team other LLMs at scale; Ganguli et al. (2022) studied red teaming to reduce harms, documenting scaling behaviors and methodological lessons. These works red-team *generation* but largely rely on downstream classifiers or humans for verification.
+**LLM-based red teaming.** Perez et al. (2022) used LLMs to red-team other LLMs at scale; Ganguli et al. (2022) studied red teaming to reduce harms and wrote down a pile of lessons. The catch: these works attack *generation*, but for verification they almost always fall back on downstream classifiers or humans.
 
-**LLM-as-a-Judge.** Zheng et al. (2023) established the viability—and biases—of LLM judges, motivating our design choice to *isolate* the judge from hypothesis generation to reduce sycophancy and commitment bias.
+**LLM-as-a-Judge.** Zheng et al. (2023) showed an LLM judge is viable —and they also laid bare its biases—. That's why we made a firm design call: *isolate* the judge from the part that generates hypotheses, to cut off sycophancy and commitment bias at the pass.
 
-**Gap addressed.** Prior red-teaming work focuses on *eliciting* failures, while prior debate work targets *open-domain truth*. We combine both for **vulnerability verification**: applying a four-role debate, anchored by an empirical Investigator, specifically to suppress false positives in code and model auditing—an evaluation axis under-served by single-agent auditors.
+**The gap we fill.** The usual red teaming is obsessed with *eliciting* failures. The usual debate work aims at *open-domain truth*. What if we glue the two together? That's what we do: a four-role debate, anchored by an Investigator with its feet on the ground, dedicated to one thing almost nobody looks at closely —killing off false positives when auditing code and models—.
 
 ## 3. Methods
 
-**System overview (theoretical protocol).** Given a target artifact (source file, dependency, or model behavior) the pipeline runs a bounded multi-turn debate:
+**The protocol, big picture.** You hand the system an artifact (a code file, a dependency, or a model's behavior) and a multi-turn debate kicks off, but a bounded one, nothing that spirals out of control:
 
-1. **Attacker (Proposer):** generates a vulnerability hypothesis specifying type, preconditions, and a *traceable* exploit vector.
-2. **Defender (Opponent):** refutes by demonstrating non-instantiability, existing sanitization/mitigation, or unmet preconditions—materializing the **burden of proof**.
-3. **Investigator (Oracle):** takes no side; retrieves *Ground Truth*—real CVEs, library/API semantics, presence/absence of sanitization in source—to constrain admissible claims to empirically contestable ones.
-4. **Judge:** evaluates the full transcript and emits a binary, justified verdict: **Confirmed Vulnerability** vs. **False Positive**.
+1. **Attacker (the one who accuses):** drops a vulnerability hypothesis and pins it down to the detail: what type it is, what preconditions it needs, and an exploit vector you can *trace*.
+2. **Defender (the one who opposes):** rebuts it. Shows it can't be instantiated, that there's already a sanitization or mitigation in place, or that preconditions are missing. This is where the **burden of proof** actually shows up.
+3. **Investigator (the oracle):** doesn't pick a side. Goes and fetches the *Ground Truth* —real CVEs, how the libraries and APIs work, whether the code sanitizes or not— so that only claims you can actually contest make it in.
+4. **Judge:** reads the whole transcript and rules with a binary, reasoned verdict: **Confirmed Vulnerability** or **False Positive**.
 
-**Design choices and justification.** The Judge is **structurally isolated** from generation and defense to avoid reintroducing confirmation/commitment bias; the verdict is formed *only* over evidence articulated in the transcript. The Investigator prevents the debate from degenerating into rhetorically persuasive but empirically decoupled exchanges.
+**Why we designed it this way.** The Judge is **isolated by structure** from the ones who generate and defend, so confirmation or commitment bias doesn't sneak back in. Its verdict comes *only and exclusively* from the evidence that shows up in the transcript. And the Investigator is there so the debate doesn't end up being two very eloquent folks saying beautiful things that never touch reality.
 
 ### 3.1 HAZE implementation (`API/`)
 
-We implement the debate protocol as **HAZE**, a deployable monolith in `API/` that orchestrates adversarial scrutiny over software artifacts via OpenRouter. The system evaluates whether a pasted or uploaded artifact (code, dependency manifest, documentation) exhibits **malicious behavior**—backdoors, data exfiltration, RCE, obfuscation, typosquatting, suspicious network calls—rather than issuing a single-model guess.
+Everything I just told you, we actually built, and it's called **HAZE**: a monolith you deploy from `API/` that orchestrates the whole adversarial scrutiny over software artifacts through OpenRouter. You paste or upload an artifact (code, a dependency manifest, documentation) and the system tells you whether there's **malicious behavior** —backdoors, data exfiltration, RCE, obfuscation, typosquatting, weird network calls—. The verdict comes out of a debate among several agents.
 
-**Architecture.** A Fastify 5 (Node.js ESM) backend serves both the REST/SSE API and a vanilla HTML/CSS/JS frontend. The pipeline is modular:
+**The architecture.** A Fastify 5 (Node.js ESM) backend serves two things at once: the REST/SSE API and a bare-bones HTML/CSS/JS frontend, no frameworks. The pipeline is split into modules:
 
 | Module | Role |
 |---|---|
@@ -59,7 +59,7 @@ We implement the debate protocol as **HAZE**, a deployable monolith in `API/` th
 | `src/routes/api.js` | `GET /api/config`, `GET /api/models`, `POST /api/analyze` (SSE) |
 | `public/` | Live debate UI with token-by-token streaming |
 
-**Agent mapping (theory → implementation).** The current prototype instantiates a **2v2 + isolated Judge** topology:
+**From theory to code (how the agents split up).** The current prototype runs a **2v2 + isolated Judge** topology:
 
 | Theoretical role | HAZE role(s) | Team | Function |
 |---|---|---|---|
@@ -68,26 +68,26 @@ We implement the debate protocol as **HAZE**, a deployable monolith in `API/` th
 | Investigator | *(planned)* | — | Not yet implemented as a separate, side-neutral agent |
 | Judge | **Judge** | Tribunal | Reads full transcript only; emits structured verdict |
 
-Each debater role is bound to a **distinct LLM** (configurable per role in the UI), breaking correlated single-model failure modes. Turn order alternates accusation/defense each round: Forensic Analyst → Auditor → Prosecutor → Defense Counsel (1–4 rounds, default 2). Debater temperature is 0.7; the Judge uses temperature 0.1 and `response_format: json_object`.
+Each debating role is tied to a **distinct LLM** (you configure it per role from the UI). This is key: it breaks those chain-reaction failures that show up when everything hangs on a single model. Turns keep alternating accusation and defense each round: Forensic Analyst → Auditor → Prosecutor → Defense Counsel (1 to 4 rounds, 2 by default). The debaters run at temperature 0.7; the Judge, on the other hand, at 0.1 and with `response_format: json_object`. Cold and methodical.
 
-**End-to-end flow.**
-1. User pastes or uploads an artifact (≤24,000 chars; larger inputs truncated with flag).
-2. User configures debate rounds and selects an OpenRouter model slug per role.
-3. `POST /api/analyze` streams Server-Sent Events: `open` → `meta` → `round` → `turn-start` / `token` / `turn-end` → `verdict` → `done`.
-4. The orchestrator accumulates a transcript; debaters see prior turns and must cite exact lines/functions—prompts explicitly forbid inventing evidence.
-5. The **isolated Judge** receives artifact + transcript only (never participated in debate) and returns JSON: `verdict` (`MALICIOUS` / `NOT_MALICIOUS` / `INCONCLUSIVE`), `confidence` (0–100), `riskLevel`, `keyFindings`, `winningTeam`, `reasoning`.
+**The full ride, start to finish.**
+1. You paste or upload an artifact (max 24,000 characters; if you go over, it gets trimmed and flags you).
+2. You pick how many debate rounds you want and which OpenRouter model each role uses.
+3. `POST /api/analyze` streams Server-Sent Events back to you: `open` → `meta` → `round` → `turn-start` / `token` / `turn-end` → `verdict` → `done`.
+4. The orchestrator stacks up the transcript. Each agent sees the previous turns and has to cite exact lines and functions —the prompts flat-out forbid making up evidence—.
+5. The **isolated Judge** gets only the artifact and the transcript (it never set foot in the debate) and hands you back JSON: `verdict` (`MALICIOUS` / `NOT_MALICIOUS` / `INCONCLUSIVE`), `confidence` (0–100), `riskLevel`, `keyFindings`, `winningTeam`, `reasoning`.
 
-**Prompt constraints (burden of proof).** All debater prompts require claims to be grounded in the artifact, cap responses at ~180 words, and enforce intellectual honesty within each team. The Judge prompt penalizes unsupported arguments and demands verdict justification from transcript quality and code evidence—operationalizing the shift from probabilistic fluency to **demonstrative scrutiny**.
+**How we tie down the prompts (the burden of proof).** All the debater prompts force them to anchor what they say to the artifact, cap them at around 180 words, and demand intellectual honesty within their own team. Yes, even among teammates. The Judge's is tougher: it penalizes arguments with no evidence and demands the verdict come out of the transcript's quality and what's actually in the code. That's where the shift from "more or less sure" to **demonstrative scrutiny** becomes real.
 
-**Models and tooling.** Agents are routed through **OpenRouter** (OpenAI-compatible API); no local GPU required. Setup: `npm install`, copy `.env.example` → `.env` with `OPENROUTER_API_KEY`, `npm run dev` → `http://localhost:3000`. Example artifacts in `API/examples/` (`suspicious_installer.py`, `benign_utils.py`) support manual smoke testing.
+**Models and tooling.** The agents go out through **OpenRouter** (OpenAI-compatible API), so you don't need a GPU on your machine. Setup is textbook: `npm install`, copy `.env.example` → `.env` with your `OPENROUTER_API_KEY`, `npm run dev`, and head to `http://localhost:3000`. In `API/examples/` you've got test artifacts (`suspicious_installer.py`, `benign_utils.py`) to poke around by hand.
 
-**Baseline.** A **single-agent auditor** ("find the vulnerability") on identical inputs, to isolate the contribution of adversarial scrutiny.
+**The baseline.** A **single-agent auditor** ("find the vulnerability") on the same inputs. That's how we isolate what the adversarial scrutiny actually adds, and what it doesn't.
 
-**What didn't work (documented).** Early variants that let the Attacker also judge collapsed into self-confirmation; un-anchored debates produced fluent but non-instantiable exploits. The separate **Investigator** role remains future work—the current 2v2 design partially mitigates hallucinations via cross-examination but lacks an impartial *Ground Truth* retrieval agent.
+**What did NOT work (and we say so).** The early versions let the Attacker also play judge. Disaster: it confirmed itself, of course. And the un-anchored debates spat out exploits that sounded fantastic but couldn't be run, not even close. The **Investigator** as a separate role stays on the to-do list —the current 2v2 already curbs part of the hallucinations thanks to the cross-examination, but it's still missing that impartial agent that goes and fetches the *Ground Truth*—.
 
 ### 3.2 Execution pipeline
 
-HAZE is not a classical static analyzer (AST/SAST). It is a **verification protocol**: multiple LLMs compete under strict rules, and an isolated judge emits a structured verdict. The client sends a JSON payload to `POST /api/analyze`:
+HAZE is a **verification protocol**: several LLMs compete under strict rules, and an isolated judge hands down a structured verdict. It works at a different level from a classic static analyzer (AST/SAST), because here the reasoning is done by the models arguing it out. The client sends a JSON payload to `POST /api/analyze`:
 
 ```json
 {
@@ -97,34 +97,34 @@ HAZE is not a classical static analyzer (AST/SAST). It is a **verification proto
 }
 ```
 
-**Phase 0 — Config resolution.** `resolveConfig()` validates the artifact is non-empty, truncates content to 24,000 characters (flagging `truncated: true` if exceeded), resolves per-role model overrides, and clamps rounds to [1, 4].
+**Phase 0 — Resolving the config.** `resolveConfig()` makes sure the artifact doesn't come in empty, trims the content to 24,000 characters (and flags `truncated: true` if it had to), resolves which model each role uses, and clamps the rounds within [1, 4].
 
-**Phase 1 — Multi-round debate.** For each round *r*, the orchestrator executes `TURN_ORDER`: Forensic Analyst → Auditor → Prosecutor → Defense Counsel. For each turn:
+**Phase 1 — The debate, round by round.** In each round *r*, the orchestrator runs `TURN_ORDER`: Forensic Analyst → Auditor → Prosecutor → Defense Counsel. And on every turn, here's what happens:
 
-1. `buildDebaterMessages()` assembles a **system** prompt (persona, objective, tribunal rules) and a **user** prompt (artifact block + accumulated transcript + opening/refutation instruction).
-2. `streamChat()` calls OpenRouter at temperature 0.7 (`max_tokens: 700`, streaming enabled).
-3. Each token delta is emitted to the client via SSE (`event: token`).
-4. The full turn text is appended to `transcript[]`—an append-only shared state visible to all subsequent debaters and to the Judge.
+1. `buildDebaterMessages()` puts together a **system** prompt (the persona, its objective, the tribunal rules) and a **user** prompt (the artifact block + the accumulated transcript + the instruction to open or refute).
+2. `streamChat()` calls OpenRouter at temperature 0.7 (`max_tokens: 700`, with streaming).
+3. Each token that comes in is pushed to the client on the fly via SSE (`event: token`).
+4. The full turn text gets appended to `transcript[]` —an append-only shared state that everyone debating after sees, and, at the end, the Judge—.
 
-**Phase 2 — Isolated verdict.** The Judge has generated no debate turns. It receives only the original artifact and the full transcript. `buildJudgeMessages()` requests strict JSON output; `chat()` is called at temperature 0.1 with `response_format: { type: "json_object" }`. `parseVerdict()` extracts the JSON object even if the model adds surrounding noise.
+**Phase 2 — The verdict, in isolation.** The Judge hasn't dropped a single debate turn. It gets only the original artifact and the whole transcript. `buildJudgeMessages()` asks it for strict JSON; `chat()` is called at temperature 0.1 with `response_format: { type: "json_object" }`. And `parseVerdict()` pulls the JSON object out even if the model wraps it in noise.
 
-**Phase 3 — Client streaming.** The API hijacks the HTTP response for Server-Sent Events:
+**Phase 3 — Streaming to the client.** The API takes over the HTTP response to push Server-Sent Events:
 
 `open` → `meta` → `round` → `turn-start` → `token*` → `turn-end` → … → `verdict` → `done`
 
-If the client disconnects, an `AbortController` cancels in-flight OpenRouter requests.
+And what if the client disconnects mid-job? An `AbortController` cuts off any requests still open against OpenRouter, right away. No tokens wasted.
 
 ### 3.3 Core technical mechanisms
 
-**Per-role model separation.** Each role may bind a distinct LLM (e.g., DeepSeek, Gemini, GPT-4o-mini, Llama 70B, Claude 3.5 Sonnet). This partially decorrelates failure modes: a model that hallucinates a backdoor may be refuted by another with different architecture and training biases.
+**A different model for each role.** Each role can be tied to a different LLM (DeepSeek, Gemini, GPT-4o-mini, Llama 70B, Claude 3.5 Sonnet, whatever you want). The beauty is that failures stop going in a chain: if one model invents a backdoor, another one with a different architecture and different training biases can tear the story down.
 
-**Transcript as shared state.** Debate state is an append-only array with no hidden memory between turns. Every claim and refutation is auditable in the transcript the Judge evaluates.
+**The transcript is the shared state.** The debate state is an append-only array, no hidden memory between turns. Everything that gets claimed and everything that gets refuted stays there, in plain sight, ready for the Judge (or you) to audit.
 
-**Epistemic isolation of the Judge.** The Judge (i) never participates in hypothesis generation, (ii) carries no adversarial persona, (iii) runs at low temperature with forced JSON schema, and (iv) is instructed to penalize unsupported arguments. This implements **LLM-as-a-Judge** with institutional separation: accusers and defenders do not decide the outcome.
+**The Judge lives in isolation, epistemically speaking.** The Judge (i) never generates hypotheses, (ii) has no persona that attacks or defends, (iii) runs at low temperature with a forced JSON schema, and (iv) is under express orders to punish arguments with no evidence. This is **LLM-as-a-Judge** with separation of powers: the one who accuses and the one who defends stay out of the final call.
 
-**Burden of proof via prompt engineering.** Debaters must cite exact lines/functions from the artifact and are forbidden from inventing code. Round 1 elicits opening evidence; later rounds require active refutation. The Prosecutor synthesizes the accusation; the Defense Counsel refutes point-by-point. Findings that cannot survive refutation are weakened in the transcript the Judge reads.
+**The burden of proof, baked into the prompts.** The debaters have to cite exact lines and functions from the artifact, and they're absolutely forbidden from inventing code. Round 1 pulls out the opening evidence; the later ones already demand real refutation. The Prosecutor gathers and builds the accusation; the Defense Counsel takes it apart point by point. And the findings that can't survive refutation? They reach the transcript the Judge reads already battered. Which is exactly what we want.
 
-**Functional decomposition of the 2v2 topology.**
+**The 2v2 topology, broken down by function.**
 
 | Role | Technical function |
 |---|---|
@@ -133,15 +133,15 @@ If the client disconnects, an `AbortController` cancels in-flight OpenRouter req
 | **Prosecutor** | Argument synthesis + rebuttal of defense claims |
 | **Defense Counsel** | Point-by-point refutation; concedes strong evidence but challenges intent/severity |
 
-A single prompt ("find the malware") conflates detection, context, and judgment; HAZE separates these functions across adversarial roles.
+A single prompt ("find the malware") jumbles it all up: detection, context, and judgment in the same head. HAZE takes those three functions and splits them across roles that go head to head.
 
 ### 3.4 Evaluation scope
 
-The current prototype targets **malicious-software detection**, not generic CVE enumeration. HAZE evaluates whether an artifact exhibits patterns such as: backdoors and reverse shells; data exfiltration (`urllib`, `socket`, encoded POST); RCE / `exec()` of downloaded payloads; obfuscation and self-modification; typosquatting in dependencies; credential/environment access; and covert telemetry. Smoke-test artifacts live in `API/examples/` (`suspicious_installer.py`, `benign_utils.py`).
+The current prototype goes after **malicious-software detection**, not enumerating CVEs in general. HAZE looks at whether an artifact shows off patterns like these: backdoors and reverse shells; data exfiltration (`urllib`, `socket`, encoded POST); RCE or `exec()` of downloaded payloads; obfuscation and code that modifies itself; typosquatting in dependencies; credential or environment access; and telemetry on the sly. To try it out, you've got the artifacts in `API/examples/` (`suspicious_installer.py`, `benign_utils.py`).
 
 ### 3.5 Contribution to AI Security
 
-HAZE addresses AI Security in two complementary dimensions.
+HAZE comes at AI security from two angles that complement each other.
 
 **Security *with* AI (using LLMs to audit software).**
 
@@ -153,45 +153,45 @@ HAZE addresses AI Security in two complementary dimensions.
 | No audit trail | Full transcript for human review |
 | Weak intrinsic self-correction | Cross-examination across multiple rounds |
 
-HAZE is **automated red teaming of artifacts**: it scales review of suspicious packages, PRs, dependencies, or snippets before merge/deploy.
+HAZE is **automated red teaming of artifacts**: it lets you review, at scale, suspicious packages, PRs, dependencies, or snippets before you merge or deploy. Before the problem walks into your house, basically.
 
 **Security *of* AI (AI Safety / Alignment).**
 
-1. **AI Safety via Debate (Irving et al., 2018).** Verification is easier than generation. The Judge does not produce the audit—it *evaluates* which side survived scrutiny. This is *scalable oversight*: supervising systems more capable than the supervisor.
-2. **Hallucination reduction by institutional design.** The system does not trust a probability threshold. The accusation must **withstand refutation**—a shift from probabilistic to demonstrative evidentiary regime.
-3. **Multi-agent debate (Du et al., 2023).** Debate improves factuality over monologic chain-of-thought; HAZE applies this to cybersecurity auditing.
-4. **LLM-as-a-Judge with bias mitigation (Zheng et al., 2023).** Judge isolation reduces *commitment bias* and *sycophancy*: the evaluator did not generate the hypothesis it judges.
-5. **Model red teaming (Perez et al., 2022; Ganguli et al., 2022).** The protocol generalizes: the "artifact" may be **model behavior** (jailbreaks, prompt injection) rather than Python source—the same adversarial topology elicits and verifies alignment failures.
+1. **AI Safety via Debate (Irving et al., 2018).** Verifying is easier than generating, like we said. The Judge's job is to *evaluate* which side held up under scrutiny. This is *scalable oversight*: being able to supervise systems more capable than the supervisor itself.
+2. **Fewer hallucinations by institutional design.** To confirm a vulnerability, the accusation has to **withstand refutation**. The criterion we enforce is demonstrative: what matters is whether the argument survives the scrutiny.
+3. **Multi-agent debate (Du et al., 2023).** Debate improves factuality over a single model thinking alone; HAZE takes that idea and carries it into cybersecurity auditing.
+4. **LLM-as-a-Judge with bias kept in check (Zheng et al., 2023).** Isolating the Judge lowers *commitment bias* and *sycophancy*: the one who evaluates comes in from the outside, having never touched the hypothesis it has to judge.
+5. **Model red teaming (Perez et al., 2022; Ganguli et al., 2022).** The protocol stretches further: the "artifact" can be a **model's behavior** (jailbreaks, prompt injection), and the same adversarial topology serves to elicit and verify alignment failures.
 
-**Epistemic cycle.** Input artifact → adversarial debate (accusation proposes, defense refutes, synthesis, closure) → isolated Judge asks whether the accusation survived refutation → `MALICIOUS` / `NOT_MALICIOUS` / `INCONCLUSIVE`.
+**The cycle, at a glance.** Input artifact → adversarial debate (the accusation proposes, the defense refutes, you synthesize, you close) → the isolated Judge asks whether the accusation survived → `MALICIOUS` / `NOT_MALICIOUS` / `INCONCLUSIVE`.
 
-**Known limitations (implementation).** (i) No Investigator role yet—no external CVE/database lookup; reasoning is confined to artifact text. (ii) LLMs may share correlated hallucination biases despite multi-model assignment. (iii) 24k-character window; no multi-file or runtime analysis. (iv) The Judge is still an LLM—verdicts assist review, not formal certification. (v) Latency and API cost scale with roles × rounds + judge vs. a single prompt.
+**What still limps (in the implementation).** (i) There's no Investigator role yet —no external CVE lookup, no databases; the reasoning stays inside the artifact's text—. (ii) Even if we split up models, the LLMs can still share hallucination biases. (iii) A 24k-character window; no multi-file or runtime analysis. (iv) The Judge is still an LLM —the verdicts help you review, they don't sign you a certificate—. (v) Latency and API cost climb with roles × rounds + judge, compared to a single prompt. More eyes cost more.
 
 ## 4. Results
 
 > *Placeholder pending experiments — to be populated with measured values.*
 
-We evaluate on a **ground-truth-labeled set** containing both vulnerable and patched/secure variants of each artifact. Primary metrics: **precision**, **recall**, **false-positive rate (FPR)**, and **verdict calibration**.
+We evaluate on a **ground-truth-labeled set** that brings both vulnerable and patched/secure versions of each artifact. The metrics we care about: **precision**, **recall**, **false-positive rate (FPR)**, and **verdict calibration**.
 
 - **Table 1.** Multi-agent debate vs. single-agent baseline: precision / recall / FPR with 95% confidence intervals.
 - **Figure 1.** False-positive rate, single-agent vs. four-role debate (lower is better). *Caption: Adversarial scrutiny is expected to reduce FPR while preserving recall on truly vulnerable artifacts.*
 - **Figure 2.** Ablation removing the Investigator and removing Judge isolation, showing the marginal contribution of each role.
 
-**Robustness.** We report statistical significance (e.g., bootstrap / McNemar's test on paired verdicts) for any claimed FPR reduction, vary the number of debate turns and the underlying model, and confirm conclusions are stable to small setup changes. Claims are made only where data sufficiency supports them.
+**Robustness.** Every time we say "we lowered the FPR," we back it up with statistical significance (bootstrap or McNemar's test on paired verdicts, for instance). We move the number of turns and the underlying model, and we check the conclusions don't wobble with small setup changes. And we only claim what the data holds up.
 
 ## 5. Discussion and Limitations
 
-**Broader AI safety implications.** The protocol instantiates *scalable oversight*: a judge need not generate an audit from scratch—an expensive, hallucination-prone task—but only evaluate which of two mutually refuted positions survives scrutiny. This burden-shifting is a concrete, deployable pattern for using debate to verify safety-relevant claims about both code and models.
+**What this means for AI safety, in the big picture.** The protocol puts *scalable oversight* into practice. The judge only has to decide which of two positions, that have already attacked each other, is left standing; it skips building the audit from scratch, an expensive task that begs for hallucinations. That burden-shifting is a concrete, deployable pattern for using debate to verify claims that matter for safety, in both code and models.
 
-**Limitations and assumptions (explicit).** (i) The Investigator's *Ground Truth* retrieval may itself hallucinate or be incomplete; (ii) the verification–generation asymmetry from Irving et al. (2018) is assumed to hold in the code/model-audit domain and must be validated empirically; (iii) the synthetic Judge may share a **correlated failure mode** with the debaters, undermining judgment independence. **Unaddressed threat models:** adversarial collusion between agents, prompt-injection from the audited artifact into the agents, and vulnerabilities requiring multi-file or runtime context beyond the provided evidence.
+**Limitations and assumptions (spelled out).** (i) What the Investigator brings in as *Ground Truth* can also hallucinate or fall short; (ii) we take the verification–generation asymmetry from Irving et al. (2018) as a given in the code/model-audit space, but it has to be proven with data; (iii) the synthetic Judge may drag along the **same failure** as the debaters, and there goes the independence of the judgment. **Threats we don't tackle yet:** agents teaming up in bad faith (collusion), the audited artifact itself injecting prompts into the agents, and vulnerabilities that need to see several files or the runtime, beyond what we hand them.
 
-**Future work.** Human-in-the-loop validation of synthetic verdicts; cross-model judges to break correlated errors; extension from per-file to repository- and runtime-level reasoning; calibration analysis of judge confidence.
+**What's next.** Putting a human in the loop (human-in-the-loop) to validate the synthetic verdicts; cross-model judges that break the shared errors; going from per-file reasoning to whole-repository and runtime; and digging into how well-calibrated the judge's confidence really is.
 
 ## 6. Conclusion
 
-We argue that reliable automated vulnerability detection requires moving beyond single-agent auditors, whose loss landscape rewards fabricating findings, toward **structured adversarial scrutiny**. By staging four LLM roles—Attacker, Defender, Investigator, and an isolated Judge—in an AI-Safety-via-Debate game, a vulnerability is confirmed only when a traced exploit survives active refutation and empirical anchoring, replacing uncalibrated probabilistic confidence with a logical burden of proof.
+If you want automated vulnerability detection you can trust, you have to move past the single-agent auditor, which by how it's trained rewards inventing findings. The path we propose is **structured adversarial scrutiny**. You put four LLM roles —Attacker, Defender, Investigator, and an isolated Judge— to play an AI-Safety-via-Debate game, and a vulnerability gets confirmed when a traced exploit holds up against refutation and against being anchored in the data. What used to be an "I'm pretty sure" becomes a real burden of proof.
 
-If validated, this design reduces false positives without sacrificing recall and offers a reproducible template for scalable oversight: using adversarial debate not merely to *elicit* failures, but to *verify* them to a standard approaching that of a human security reviewer.
+If this validates, it drives down false positives without wrecking recall and leaves you a reproducible template for scalable oversight. The underlying idea: use adversarial debate to carry failures all the way to *verification*, to a bar that gets close to a human security reviewer's.
 
 ## Code and Data
 
@@ -222,4 +222,4 @@ Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., … Stoica,
 
 **LLM Usage Statement:**
 
-LLMs were used to assist drafting, structuring, and literature framing of this submission, and they constitute the system under study (the four debate agents). All technical claims, cited references, and—once populated—empirical results were independently verified by the authors; quantitative results in Section 4 are pending experiments and must not be cited until measured and significance-tested.
+We used LLMs to help us out with the drafting, the structure, and the literature framing of this submission. And, on top of that, they're the very system we study (the four agents that debate). All the technical claims, the cited references, and —once they're in— the empirical results were verified by us, the authors, independently. One thing to watch: the numbers in Section 4 are still pending experiments, so don't cite them until they're measured and run through the significance tests.
