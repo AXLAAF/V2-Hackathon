@@ -1,8 +1,10 @@
-# Escrutinio Adversarial Multi-Agente para la Detección de Vulnerabilidades: Red Teaming Automatizado mediante AI Safety Debate
+# HAZE: Escrutinio Adversarial Multi-Agente para la Detección de Vulnerabilidades
+
+**HAZE** (*Hallucination-Aware Zero-sum Examination*) — Red Teaming Automatizado mediante AI Safety Debate
 
 **Autores:** [Nombres del Equipo]
 
-**Código y Datos:** [Enlace al Repositorio de GitHub] | [Enlace al Dataset / Transcripciones]
+**Código y Datos:** [Enlace al Repositorio de GitHub]/`API` | [Enlace al Dataset / Transcripciones]
 
 ## Resumen (Abstract)
 
@@ -33,7 +35,7 @@ El descubrimiento automatizado de vulnerabilidades con LLMs es atractivo porque 
 
 ## 3. Métodos
 
-**Visión general del sistema.** Dado un artefacto objetivo (archivo de código fuente, dependencia o comportamiento de un modelo), el pipeline ejecuta un debate acotado de múltiples turnos:
+**Visión general del protocolo teórico.** Dado un artefacto objetivo (archivo de código fuente, dependencia o comportamiento de un modelo), el pipeline ejecuta un debate acotado de múltiples turnos:
 
 1. **Atacante (Proponente):** genera una hipótesis de vulnerabilidad especificando tipo, precondiciones y un vector de ataque *trazable*.
 2. **Defensor (Opositor):** refuta demostrando la no instanciabilidad, la existencia de sanitización/mitigación, o precondiciones no satisfechas —materializando la **carga de la prueba**.
@@ -42,11 +44,128 @@ El descubrimiento automatizado de vulnerabilidades con LLMs es atractivo porque 
 
 **Decisiones de diseño y justificación.** El Juez está **estructuralmente aislado** de la generación y la defensa para evitar reintroducir el sesgo de confirmación/compromiso; el veredicto se forma *únicamente* sobre la evidencia articulada en la transcripción. El Investigador previene que el debate degenere en intercambios retóricamente persuasivos pero empíricamente desacoplados.
 
-**Modelos y herramientas.** Los agentes LLM se instancian a partir de modelos ajustados por instrucciones (Python 3.10+, HuggingFace; las utilidades de análisis pueden usar PyTorch/TransformerLens). Todos los componentes estocásticos fijan las semillas aleatorias (p. ej., `torch.manual_seed(42)`) para reproducibilidad. La orquestación es modular, separando (a) la carga del artefacto, (b) la ejecución de los agentes y (c) la evaluación del veredicto en funciones distintas, de modo que los jueces puedan reejecutar el pipeline con una configuración mínima.
+### 3.1 Implementación de HAZE (`API/`)
+
+Implementamos el protocolo de debate como **HAZE**, un monolito desplegable en `API/` que orquesta el escrutinio adversarial sobre artefactos de software vía OpenRouter. El sistema evalúa si un artefacto pegado o subido (código, manifiesto de dependencias, documentación) exhibe **comportamiento malicioso** —backdoors, exfiltración de datos, RCE, ofuscación, typosquatting, llamadas de red sospechosas— en lugar de emitir una conjetura de un solo modelo.
+
+**Arquitectura.** Un backend Fastify 5 (Node.js ESM) sirve tanto la API REST/SSE como un frontend vanilla HTML/CSS/JS. El pipeline es modular:
+
+| Módulo | Función |
+|---|---|
+| `src/config/roles.js` | Plantilla de equipos, orden de turnos, modelos por defecto |
+| `src/services/prompts.js` | Prompts system/user por rol y esquema JSON del juez |
+| `src/services/orchestrator.js` | Motor de debate multi-ronda y parseo del veredicto |
+| `src/services/openrouter.js` | Cliente OpenRouter (streaming + JSON estructurado) |
+| `src/routes/api.js` | `GET /api/config`, `GET /api/models`, `POST /api/analyze` (SSE) |
+| `public/` | UI de debate en vivo con streaming token a token |
+
+**Mapeo de agentes (teoría → implementación).** El prototipo actual instancia una topología **2v2 + Juez aislado**:
+
+| Rol teórico | Rol(es) en HAZE | Equipo | Función |
+|---|---|---|---|
+| Atacante | **Analista Forense** + **Fiscal** | Acusación | Exponer evidencia técnica de patrones maliciosos; sintetizar y refutar argumentos de la defensa |
+| Defensor | **Auditor** + **Defensor** | Defensa | Explicar intención legítima; refutar acusaciones con contexto benigno y prácticas estándar |
+| Investigador | *(planificado)* | — | Aún no implementado como agente separado e imparcial |
+| Juez | **Juez** | Tribunal | Lee solo la transcripción completa; emite veredicto estructurado |
+
+Cada rol debatiente está vinculado a un **LLM distinto** (configurable por rol en la UI), rompiendo modos de fallo correlacionados de un solo modelo. El orden de turnos alterna acusación/defensa cada ronda: Analista Forense → Auditor → Fiscal → Defensor (1–4 rondas, default 2). Temperatura de debatientes: 0.7; el Juez usa temperatura 0.1 y `response_format: json_object`.
+
+**Flujo de extremo a extremo.**
+1. El usuario pega o sube un artefacto (≤24.000 caracteres; entradas mayores se truncan con flag).
+2. Configura las rondas de debate y selecciona un slug de modelo OpenRouter por rol.
+3. `POST /api/analyze` transmite Server-Sent Events: `open` → `meta` → `round` → `turn-start` / `token` / `turn-end` → `verdict` → `done`.
+4. El orquestador acumula una transcripción; los debatientes ven turnos previos y deben citar líneas/funciones exactas —los prompts prohíben explícitamente inventar evidencia.
+5. El **Juez aislado** recibe solo artefacto + transcripción (nunca participó en el debate) y devuelve JSON: `verdict` (`MALICIOSO` / `NO_MALICIOSO` / `INCONCLUSO`), `confidence` (0–100), `riskLevel`, `keyFindings`, `winningTeam`, `reasoning`.
+
+**Restricciones de prompts (carga de la prueba).** Todos los prompts de debatientes exigen afirmaciones ancladas al artefacto, limitan respuestas a ~180 palabras y aplican honestidad intelectual dentro de cada equipo. El prompt del Juez penaliza argumentos sin evidencia y exige justificación del veredicto a partir de la calidad de la transcripción y la evidencia del código —operacionalizando el cambio de fluidez probabilística a **escrutinio demostrativo**.
+
+**Modelos y herramientas.** Los agentes se enrutan por **OpenRouter** (API compatible con OpenAI); no requiere GPU local. Setup: `npm install`, copiar `.env.example` → `.env` con `OPENROUTER_API_KEY`, `npm run dev` → `http://localhost:3000`. Artefactos de ejemplo en `API/examples/` (`suspicious_installer.py`, `benign_utils.py`) para pruebas manuales.
 
 **Baseline.** Un **auditor de un solo agente** ("encuentra la vulnerabilidad") sobre entradas idénticas, para aislar la contribución del escrutinio adversarial.
 
-**Lo que no funcionó (a documentar).** Las variantes iniciales que permitían al Atacante también juzgar colapsaron en auto-confirmación; los debates sin anclaje (sin Investigador) produjeron exploits fluidos pero no instanciables. Esto motiva la arquitectura final y se reporta con honestidad en Resultados/Discusión.
+**Lo que no funcionó (documentado).** Las variantes iniciales que permitían al Atacante también juzgar colapsaron en auto-confirmación; los debates sin anclaje produjeron exploits fluidos pero no instanciables. El rol **Investigador** separado queda como trabajo futuro —el diseño 2v2 actual mitiga parcialmente las alucinaciones vía información cruzada, pero carece de un agente imparcial de recuperación de *Verdad de Terreno*.
+
+### 3.2 Pipeline de ejecución
+
+HAZE no es un analizador estático clásico (AST/SAST). Es un **protocolo de verificación**: varios LLMs compiten bajo reglas estrictas y un juez aislado emite un veredicto estructurado. El cliente envía un payload JSON a `POST /api/analyze`:
+
+```json
+{
+  "artifact": { "filename": "setup.py", "content": "...", "kind": "código" },
+  "rounds": 2,
+  "models": { "fiscal_analista": "deepseek/deepseek-chat", "juez": "anthropic/claude-3.5-sonnet" }
+}
+```
+
+**Fase 0 — Resolución de configuración.** `resolveConfig()` valida que el artefacto no esté vacío, trunca el contenido a 24.000 caracteres (marcando `truncated: true` si aplica), resuelve overrides de modelo por rol y acota las rondas a [1, 4].
+
+**Fase 1 — Debate multi-ronda.** Por cada ronda *r*, el orquestador ejecuta `TURN_ORDER`: Analista Forense → Auditor → Fiscal → Defensor. Por cada turno:
+
+1. `buildDebaterMessages()` ensambla un prompt **system** (persona, objetivo, reglas del tribunal) y un prompt **user** (bloque del artefacto + transcripción acumulada + instrucción de apertura/refutación).
+2. `streamChat()` llama a OpenRouter con temperatura 0.7 (`max_tokens: 700`, streaming activado).
+3. Cada delta de token se emite al cliente vía SSE (`event: token`).
+4. El texto completo del turno se añade a `transcript[]` —estado compartido append-only visible para todos los debatientes posteriores y para el Juez.
+
+**Fase 2 — Veredicto aislado.** El Juez no ha generado ningún turno de debate. Recibe solo el artefacto original y la transcripción completa. `buildJudgeMessages()` solicita salida JSON estricta; `chat()` se invoca con temperatura 0.1 y `response_format: { type: "json_object" }`. `parseVerdict()` extrae el objeto JSON aunque el modelo añada ruido circundante.
+
+**Fase 3 — Streaming al cliente.** La API secuestra la respuesta HTTP para Server-Sent Events:
+
+`open` → `meta` → `round` → `turn-start` → `token*` → `turn-end` → … → `verdict` → `done`
+
+Si el cliente se desconecta, un `AbortController` cancela las peticiones en curso a OpenRouter.
+
+### 3.3 Mecanismos técnicos centrales
+
+**Separación de modelos por rol.** Cada rol puede vincular un LLM distinto (p. ej., DeepSeek, Gemini, GPT-4o-mini, Llama 70B, Claude 3.5 Sonnet). Esto descorrelaciona parcialmente los modos de fallo: un modelo que alucina un backdoor puede ser refutado por otro con arquitectura y sesgos de entrenamiento distintos.
+
+**Transcripción como estado compartido.** El estado del debate es un array append-only sin memoria oculta entre turnos. Toda afirmación y refutación es auditable en la transcripción que evalúa el Juez.
+
+**Aislamiento epistémico del Juez.** El Juez (i) nunca participa en la generación de hipótesis, (ii) no tiene persona adversarial, (iii) opera a baja temperatura con esquema JSON forzado, y (iv) está instruido para penalizar argumentos sin evidencia. Esto implementa **LLM-as-a-Judge** con separación institucional: quien acusa y defiende no decide el resultado.
+
+**Carga de la prueba vía ingeniería de prompts.** Los debatientes deben citar líneas/funciones exactas del artefacto y tienen prohibido inventar código. La ronda 1 elicita evidencia de apertura; las rondas posteriores exigen refutación activa. El Fiscal sintetiza la acusación; el Defensor refuta punto por punto. Los hallazgos que no sobreviven la refutación quedan debilitados en la transcripción que lee el Juez.
+
+**Descomposición funcional de la topología 2v2.**
+
+| Rol | Función técnica |
+|---|---|
+| **Analista Forense** | Detección ofensiva: patrones maliciosos, indicadores en el código |
+| **Auditor** | Contexto defensivo: uso legítimo, explicaciones benignas |
+| **Fiscal** | Síntesis argumentativa + refutación de la defensa |
+| **Defensor** | Refutación punto por punto; admite evidencia fuerte pero cuestiona intención/severidad |
+
+Un solo prompt ("encuentra el malware") mezcla detección, contexto y juicio; HAZE separa estas funciones en roles adversariales.
+
+### 3.4 Alcance de evaluación
+
+El prototipo actual apunta a la **detección de software malicioso**, no a la enumeración genérica de CVEs. HAZE evalúa si un artefacto exhibe patrones como: backdoors y shells inversas; exfiltración de datos (`urllib`, `socket`, POST codificado); RCE / `exec()` de payloads descargados; ofuscación y auto-modificación; typosquatting en dependencias; acceso a credenciales/entorno; y telemetría encubierta. Los artefactos de prueba están en `API/examples/` (`suspicious_installer.py`, `benign_utils.py`).
+
+### 3.5 Contribución a AI Security
+
+HAZE aborda AI Security en dos dimensiones complementarias.
+
+**Seguridad *con* IA (usar LLMs para auditar software).**
+
+| Fallo del single-agent | Mitigación en HAZE |
+|---|---|
+| Sesgo de confirmación: inventar hallazgos para satisfacer el prompt | Adversario dedicado (Defensa) refuta activamente las afirmaciones |
+| Confianza no calibrada ("~80% seguro") | Veredicto JSON estructurado: `verdict`, `confidence`, `keyFindings`, `reasoning` |
+| Un solo modelo, un solo punto ciego | Roles multi-modelo con errores parcialmente descorrelacionados |
+| Sin trazabilidad | Transcripción completa auditable por humanos |
+| Auto-corrección intrínseca débil | Información cruzada adversarial en múltiples rondas |
+
+HAZE es **red teaming automatizado de artefactos**: escala la revisión de paquetes sospechosos, PRs, dependencias o snippets antes de merge/deploy.
+
+**Seguridad *de* IA (AI Safety / Alignment).**
+
+1. **AI Safety via Debate (Irving et al., 2018).** Verificar es más fácil que generar. El Juez no produce la auditoría —*evalúa* qué bando sobrevivió al escrutinio. Esto es *supervisión escalable* (*scalable oversight*): supervisar sistemas más capaces que el supervisor.
+2. **Reducción de alucinaciones por diseño institucional.** El sistema no confía en un umbral de probabilidad. La acusación debe **resistir la refutación** —cambio de régimen probatorio probabilístico a demostrativo.
+3. **Debate multi-agente (Du et al., 2023).** El debate mejora la factualidad frente al chain-of-thought monológico; HAZE lo aplica a la auditoría de ciberseguridad.
+4. **LLM-as-a-Judge con mitigación de sesgos (Zheng et al., 2023).** El aislamiento del Juez reduce el *commitment bias* y la *sicofancia*: el evaluador no generó la hipótesis que juzga.
+5. **Red teaming de modelos (Perez et al., 2022; Ganguli et al., 2022).** El protocolo generaliza: el "artefacto" puede ser **comportamiento de un modelo** (jailbreaks, prompt injection) en lugar de código Python —la misma topología adversarial provoca y verifica fallos de alineación.
+
+**Ciclo epistémico.** Artefacto de entrada → debate adversarial (acusación propone, defensa refuta, síntesis, cierre) → Juez aislado pregunta si la acusación sobrevivió la refutación → `MALICIOSO` / `NO_MALICIOSO` / `INCONCLUSO`.
+
+**Limitaciones conocidas (implementación).** (i) Sin rol Investigador aún —sin consulta externa de CVEs/bases de datos; el razonamiento se limita al texto del artefacto. (ii) Los LLMs pueden compartir sesgos de alucinación correlacionados pese a la asignación multi-modelo. (iii) Ventana de 24k caracteres; sin análisis multi-archivo ni en tiempo de ejecución. (iv) El Juez sigue siendo un LLM —los veredictos asisten la revisión, no certifican formalmente. (v) Latencia y coste de API escalan con roles × rondas + juez vs. un solo prompt.
 
 ## 4. Resultados
 
@@ -76,8 +195,8 @@ De validarse, este diseño reduce los falsos positivos sin sacrificar el recall 
 
 ## Código y Datos
 
-[Enlace al Repositorio de GitHub] — pipeline, prompts de los agentes y scripts de evaluación.
-[Enlace al Dataset / Transcripciones] — artefactos etiquetados y transcripciones completas de los debates.
+[Enlace al Repositorio de GitHub]/`API` — monolito HAZE: backend Fastify, orquestador OpenRouter, prompts por rol, API de debate SSE e interfaz web en vivo.
+[Enlace al Dataset / Transcripciones] — artefactos etiquetados, PoCs de ejemplo (`API/examples/`) y transcripciones completas de los debates.
 
 ## Contribuciones de los Autores (opcional)
 
