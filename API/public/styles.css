@@ -1,0 +1,207 @@
+:root {
+  --bg: #0b0f1a;
+  --panel: #131a2b;
+  --panel-2: #1b2438;
+  --border: #2a3650;
+  --text: #e7ecf5;
+  --muted: #8b97b0;
+  --acu: #ef4444;
+  --acu-soft: #ef444422;
+  --def: #3b82f6;
+  --def-soft: #3b82f622;
+  --judge: #a855f7;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: radial-gradient(1200px 600px at 50% -10%, #1a2340 0%, var(--bg) 60%), var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.topbar {
+  text-align: center;
+  padding: 22px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.topbar h1 { margin: 0; font-size: 30px; letter-spacing: 0.5px; }
+.topbar .v {
+  font-size: 14px;
+  background: var(--judge);
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.tagline { color: var(--muted); margin: 6px 0 0; }
+.t-acu { color: var(--acu); }
+.t-def { color: var(--def); }
+
+.layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 18px;
+  padding: 18px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+}
+.panel h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin: 4px 0 12px;
+}
+
+.field { display: block; margin-bottom: 16px; }
+.field > span { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
+.file-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.file-row > span { font-size: 13px; color: var(--muted); }
+
+input[type="text"],
+textarea,
+select {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+}
+textarea { resize: vertical; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; }
+input[type="range"] { width: 100%; accent-color: var(--judge); }
+
+.upload-btn {
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.upload-btn:hover { border-color: var(--judge); }
+
+.role-config { display: flex; flex-direction: column; gap: 10px; }
+.role-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.role-card .role-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+.role-card .role-team { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 1px 6px; border-radius: 999px; }
+.team-acusacion { background: var(--acu-soft); color: var(--acu); }
+.team-defensa { background: var(--def-soft); color: var(--def); }
+.team-tribunal { background: #a855f722; color: var(--judge); }
+
+.cta {
+  width: 100%;
+  margin-top: 8px;
+  background: linear-gradient(135deg, var(--judge), #7c3aed);
+  color: white;
+  border: none;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.cta:hover { filter: brightness(1.1); }
+.cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.status { font-size: 13px; color: var(--muted); margin: 10px 0 0; min-height: 18px; }
+.status.err { color: var(--acu); }
+
+.muted { color: var(--muted); }
+
+/* ---- Sala ---- */
+.courtroom { display: flex; flex-direction: column; min-height: 70vh; }
+.courtroom-title { text-align: center; }
+.arena { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1; }
+.column { display: flex; flex-direction: column; }
+.col-head {
+  text-align: center;
+  font-weight: 700;
+  padding: 8px;
+  border-radius: 8px 8px 0 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+.lane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  min-height: 200px;
+}
+
+.bubble {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  animation: pop 0.25s ease;
+}
+.bubble.acu { border-left: 3px solid var(--acu); }
+.bubble.def { border-left: 3px solid var(--def); }
+.bubble .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.bubble .who { font-weight: 700; font-size: 12.5px; }
+.bubble .model { font-size: 10.5px; color: var(--muted); font-family: ui-monospace, monospace; }
+.bubble .round-tag { font-size: 10px; color: var(--muted); }
+.bubble .body { white-space: pre-wrap; }
+.bubble.thinking .body::after { content: "▌"; animation: blink 1s steps(2) infinite; color: var(--muted); }
+.bubble.errored { border-color: var(--acu); color: var(--acu); }
+
+@keyframes pop { from { opacity: 0; transform: translateY(8px); } }
+@keyframes blink { 50% { opacity: 0; } }
+
+.empty-state { text-align: center; color: var(--muted); padding: 30px; }
+.hidden { display: none; }
+
+/* ---- Veredicto ---- */
+.verdict {
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  animation: pop 0.4s ease;
+}
+.verdict.MALICIOSO { background: var(--acu-soft); border-color: var(--acu); }
+.verdict.NO_MALICIOSO { background: #22c55e22; border-color: var(--ok); }
+.verdict.INCONCLUSO { background: #f59e0b22; border-color: var(--warn); }
+.verdict h3 { margin: 0 0 4px; font-size: 22px; }
+.verdict .meta-row { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin: 8px 0; }
+.verdict .meta-row b { color: var(--text); }
+.verdict .findings { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.verdict .reasoning { font-size: 13.5px; color: var(--text); margin-top: 8px; font-style: italic; }
+.bar { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.bar > span { display: block; height: 100%; background: var(--judge); }
