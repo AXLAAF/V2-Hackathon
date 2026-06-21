@@ -1,0 +1,11 @@
+torch>=2.0.0
+transformers
+datasets
+accelerate
+einops
+transformer-lens
+jaxtyping
+matplotlib
+seaborn
+pandas
+jupyter
