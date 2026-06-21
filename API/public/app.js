@@ -8,9 +8,21 @@ let running = false;
 
 const TEAM_LABEL = { acusacion: 'acusacion', defensa: 'defensa', tribunal: 'tribunal' };
 const VERDICT_LABEL = {
-  MALICIOSO:    '!! MALICIOSO',
-  NO_MALICIOSO: '-- NO MALICIOSO',
-  INCONCLUSO:   '?? INCONCLUSO',
+  MALICIOSO:    'MALICIOSO',
+  NO_MALICIOSO: 'NO MALICIOSO',
+  INCONCLUSO:   'INCONCLUSO',
+};
+
+// Roster por defecto: garantiza que la selección de modelos se muestre
+// aunque /api/config no responda (refleja src/config/roles.js).
+const FALLBACK_CONFIG = {
+  roles: [
+    { id: 'fiscal_analista', team: 'acusacion', name: 'Analista Forense', title: 'Analista Forense de la Acusación', defaultModel: 'deepseek/deepseek-chat', color: '#ffffff' },
+    { id: 'defensa_auditor', team: 'defensa', name: 'Auditor', title: 'Auditor Técnico de la Defensa', defaultModel: 'google/gemini-2.0-flash-001', color: '#ffffff' },
+    { id: 'fiscal_abogado', team: 'acusacion', name: 'Fiscal', title: 'Fiscal Jefe', defaultModel: 'openai/gpt-4o-mini', color: '#ffffff' },
+    { id: 'defensa_abogado', team: 'defensa', name: 'Defensor', title: 'Abogado Defensor', defaultModel: 'meta-llama/llama-3.1-70b-instruct', color: '#ffffff' },
+  ],
+  judge: { id: 'juez', team: 'tribunal', name: 'Juez', title: 'Juez del Tribunal Técnico', defaultModel: 'anthropic/claude-sonnet-4-5', color: '#ffffff' },
 };
 
 // ---------- Inicialización ----------
@@ -19,10 +31,16 @@ init();
 async function init() {
   try {
     CONFIG = await (await fetch('/api/config')).json();
-    renderRoleConfig();
+    if (!CONFIG || !Array.isArray(CONFIG.roles) || !CONFIG.roles.length) {
+      throw new Error('config vacía');
+    }
   } catch (e) {
-    setStatus('No se pudo cargar la configuración del servidor.', true);
+    // Sin servidor o sin config: usamos el roster por defecto para que
+    // la selección de modelos siga visible (degradación elegante).
+    CONFIG = FALLBACK_CONFIG;
+    setStatus('Modo offline: usando configuración por defecto.');
   }
+  renderRoleConfig();
   // Carga de modelos en segundo plano (no bloquea la UI).
   fetch('/api/models')
     .then((r) => r.json())

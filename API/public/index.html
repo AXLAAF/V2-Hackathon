@@ -4,77 +4,125 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HAZE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
+    <!-- Capa atmosférica fija (video + niebla CSS + overlay). z-index: -1 -->
+    <div class="haze-bg" aria-hidden="true">
+      <video
+        class="haze-video"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="auto"
+        poster=""
+      >
+        <!-- Coloca un loop de niebla en escala de grises en public/fog.mp4 -->
+        <source src="fog.mp4" type="video/mp4" />
+      </video>
+      <div class="haze-fog"></div>
+      <div class="haze-overlay"></div>
+    </div>
+
+    <header class="topbar glass">
       <div class="topbar-brand">HAZE</div>
-      <div class="topbar-center">analisis adversarial de artefactos</div>
-      <div class="topbar-status" id="topbar-status">inactivo</div>
+      <div class="topbar-center">Análisis adversarial de artefactos</div>
+      <div class="topbar-status" id="topbar-status">
+        <span class="status-dot"></span>
+        <span class="status-text">Inactivo</span>
+      </div>
     </header>
 
     <main class="layout">
 
-      <section class="panel setup" id="setup">
-        <div class="panel-titlebar">-- artefacto --</div>
+      <section class="panel setup glass" id="setup">
+        <div class="panel-titlebar">
+          <i data-lucide="file-code-2"></i>
+          <span>Artefacto</span>
+        </div>
         <div class="panel-body">
 
           <label class="field">
-            <span class="field-label">nombre del archivo</span>
+            <span class="field-label">Nombre del archivo</span>
             <input id="filename" type="text" placeholder="installer.py" />
           </label>
 
           <div class="field">
             <div class="file-row">
-              <span class="field-label">contenido</span>
+              <span class="field-label">Contenido</span>
               <label class="upload-btn">
-                [subir archivo]
+                <i data-lucide="upload"></i>
+                <span>Subir</span>
                 <input id="fileInput" type="file" hidden />
               </label>
             </div>
             <textarea
               id="artifact"
               rows="12"
-              placeholder="# pega el codigo, la dependencia o la documentacion a analizar"
+              placeholder="Pega el código, la dependencia o la documentación a analizar"
             ></textarea>
             <small id="artifactMeta" class="muted"></small>
           </div>
 
-          <div class="section-sep">-- jurado --</div>
+          <div class="section-sep">
+            <i data-lucide="scale"></i>
+            <span>Jurado</span>
+          </div>
 
           <label class="field">
-            <span class="field-label">rondas de debate: <span id="roundsLabel" class="accent">2</span></span>
+            <span class="field-label">
+              Rondas de debate <span id="roundsLabel" class="accent">2</span>
+            </span>
             <input id="rounds" type="range" min="1" max="4" value="2" />
           </label>
 
           <div id="roleConfig" class="role-config"></div>
 
-          <button id="startBtn" class="cta">$ iniciar analisis</button>
+          <button id="startBtn" class="cta">
+            <i data-lucide="scan-search"></i>
+            <span>Iniciar análisis</span>
+          </button>
           <p id="status" class="status"></p>
 
         </div>
       </section>
 
-      <section class="panel courtroom">
-        <div class="panel-titlebar">-- sala --</div>
+      <section class="panel courtroom glass">
+        <div class="panel-titlebar">
+          <i data-lucide="gavel"></i>
+          <span>Sala</span>
+        </div>
         <div id="verdict" class="verdict hidden"></div>
         <div class="arena">
           <div class="column col-acu">
-            <div class="col-head t-acu">[ acusacion ]</div>
+            <div class="col-head t-acu">Acusación</div>
             <div id="lane-acusacion" class="lane"></div>
           </div>
           <div class="column col-def">
-            <div class="col-head t-def">[ defensa ]</div>
+            <div class="col-head t-def">Defensa</div>
             <div id="lane-defensa" class="lane"></div>
           </div>
         </div>
         <div id="emptyState" class="empty-state">
-          sala vacia &mdash; configura el caso y ejecuta <span class="accent">$ iniciar analisis</span>
+          <i data-lucide="scan-line" class="empty-icon"></i>
+          <p>Sala vacía</p>
+          <small class="muted">Configura el caso y ejecuta <span class="accent">Iniciar análisis</span></small>
         </div>
       </section>
 
     </main>
 
+    <!-- Iconografía vectorial minimalista (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+      // Renderiza los iconos estáticos al cargar.
+      window.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide) window.lucide.createIcons();
+      });
+    </script>
     <script src="app.js"></script>
   </body>
 </html>
