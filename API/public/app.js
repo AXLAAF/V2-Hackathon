@@ -6,11 +6,11 @@ let CONFIG = null; // metadata de roles desde /api/config
 let MODELS = []; // modelos disponibles en OpenRouter
 let running = false;
 
-const TEAM_LABEL = { acusacion: 'Acusación', defensa: 'Defensa', tribunal: 'Tribunal' };
+const TEAM_LABEL = { acusacion: 'acusacion', defensa: 'defensa', tribunal: 'tribunal' };
 const VERDICT_LABEL = {
-  MALICIOSO: '🔴 MALICIOSO',
-  NO_MALICIOSO: '🟢 NO MALICIOSO',
-  INCONCLUSO: '🟡 INCONCLUSO',
+  MALICIOSO:    '!! MALICIOSO',
+  NO_MALICIOSO: '-- NO MALICIOSO',
+  INCONCLUSO:   '?? INCONCLUSO',
 };
 
 // ---------- Inicialización ----------
@@ -185,7 +185,7 @@ function handleEvent(event, data, bubbles) {
       if (el) {
         el.parentElement.classList.remove('thinking');
         el.parentElement.classList.add('errored');
-        el.textContent = '⚠️ ' + data.message;
+        el.textContent = '[error] ' + data.message;
       }
       break;
     }
@@ -248,6 +248,10 @@ function setStatus(msg, isErr = false) {
   const s = $('status');
   s.textContent = msg;
   s.classList.toggle('err', isErr);
+
+  const t = $('topbar-status');
+  t.textContent = msg || 'inactivo';
+  t.className = 'topbar-status' + (isErr ? ' err' : running ? ' active' : ' done');
 }
 
 function escapeHtml(s) {
