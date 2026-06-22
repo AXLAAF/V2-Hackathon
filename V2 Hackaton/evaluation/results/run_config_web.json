@@ -1,0 +1,18 @@
+{
+  "ts": "2026-06-21T21:10:28.903Z",
+  "endpoint": "https://hackaton.xooktech.com",
+  "conditions": [
+    "debate",
+    "debate_r1"
+  ],
+  "repeats": 3,
+  "baseRounds": 2,
+  "roster": {
+    "fiscal_analista": "deepseek/deepseek-chat",
+    "defensa_auditor": "google/gemini-2.0-flash-001",
+    "fiscal_abogado": "openai/gpt-4o-mini",
+    "defensa_abogado": "meta-llama/llama-3.1-70b-instruct",
+    "juez": "anthropic/claude-sonnet-4-5"
+  },
+  "nArtifacts": 20
+}

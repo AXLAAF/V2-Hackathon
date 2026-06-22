@@ -1,0 +1,5 @@
+.env
+results/run_web.log
+results/snapshots/
+__pycache__/
+*.pyc

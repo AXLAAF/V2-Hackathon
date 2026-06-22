@@ -1,77 +1,77 @@
-# Despliegue en CloudPanel
+# Deploy on CloudPanel
 
-Guía para publicar **ChismeLLM V2** en un servidor con CloudPanel (Nginx + Node.js).
-CloudPanel hace de **reverse proxy** hacia tu app Node; el proceso lo mantiene **PM2**.
-
----
-
-## 1. Crear el sitio Node.js en CloudPanel
-
-1. En CloudPanel: **Sites → Add Site → Create a Node.js Site**.
-2. Rellena:
-   - **Domain Name:** `tu-dominio.com` (o un subdominio, ej. `chisme.tu-dominio.com`).
-   - **Node.js Version:** 20 o superior.
-   - **App Port:** `4747` (debe coincidir con `PORT` del paso 4).
-3. Crear. CloudPanel genera el vhost de Nginx con el reverse proxy a `127.0.0.1:4747`
-   y un usuario de sistema para el sitio (lo verás como *Site User*).
-
-> Anota el **Site User** y la ruta raíz: `/home/<site-user>/htdocs/<dominio>/`.
+Guide to publish **HAZE** on a server with CloudPanel (Nginx + Node.js).
+CloudPanel acts as a **reverse proxy** to your Node app; **PM2** keeps the process alive.
 
 ---
 
-## 2. Subir el código
+## 1. Create the Node.js site in CloudPanel
 
-Sube **el contenido de la carpeta `API/`** a la raíz del sitio
-(`/home/<site-user>/htdocs/<dominio>/`). Opciones:
+1. In CloudPanel: **Sites → Add Site → Create a Node.js Site**.
+2. Fill in:
+   - **Domain Name:** `your-domain.com` (or a subdomain, e.g. `haze.your-domain.com`).
+   - **Node.js Version:** 20 or higher.
+   - **App Port:** `4747` (must match `PORT` in step 4).
+3. Create. CloudPanel generates the Nginx vhost with reverse proxy to `127.0.0.1:4747`
+   and a system user for the site (*Site User*).
 
-**a) Git (recomendado)** — por SSH como el *Site User*:
+> Note the **Site User** and root path: `/home/<site-user>/htdocs/<domain>/`.
+
+---
+
+## 2. Upload the code
+
+Upload **the contents of the `API/` folder** to the site root
+(`/home/<site-user>/htdocs/<domain>/`). Options:
+
+**a) Git (recommended)** — via SSH as the *Site User*:
 ```bash
-cd /home/<site-user>/htdocs/<dominio>
-git clone <tu-repo> .
-# Si el repo tiene la raíz en /API, sube sólo esa carpeta o muévela aquí.
+cd /home/<site-user>/htdocs/<domain>
+git clone <your-repo> .
+# If the repo root is not API/, copy or move only the API/ folder here.
 ```
 
-**b) SFTP / File Manager de CloudPanel** — copia todo `API/` excepto
-`node_modules/` y `.env`.
+**b) SFTP / CloudPanel File Manager** — copy all of `API/` except
+`node_modules/` and `.env`.
 
 ---
 
-## 3. Instalar dependencias
+## 3. Install dependencies
 
-Por SSH como el *Site User*, en la raíz del sitio:
+Via SSH as the *Site User*, in the site root:
 ```bash
-npm ci --omit=dev    # o: npm install --omit=dev
+npm ci --omit=dev    # or: npm install --omit=dev
 ```
 
 ---
 
-## 4. Configurar el entorno
+## 4. Configure the environment
 
 ```bash
 cp .env.example .env
 nano .env
 ```
-Deja así:
+Set:
 ```
-OPENROUTER_API_KEY=sk-or-v1-tu_clave_real
-PORT=4747          # = App Port del sitio
-HOST=127.0.0.1     # sólo localhost: el tráfico entra por el proxy de CloudPanel
-APP_URL=https://tu-dominio.com
-APP_TITLE=ChismeLLM V2
+OPENROUTER_API_KEY=sk-or-v1-your_real_key
+PORT=4747          # = App Port of the site
+HOST=127.0.0.1     # localhost only; traffic enters via CloudPanel proxy
+APP_URL=https://your-domain.com
+APP_TITLE=HAZE
 ```
 
 ---
 
-## 5. Arrancar con PM2
+## 5. Start with PM2
 
-CloudPanel **no** mantiene el proceso vivo solo; usa PM2 (instálalo como *Site User*):
+CloudPanel does **not** keep the process alive by itself; use PM2 (install as *Site User*):
 ```bash
-npm install -g pm2          # si no está; o instálalo en local del proyecto
+npm install -g pm2          # if missing; or install locally in the project
 pm2 start ecosystem.config.cjs
 pm2 save
-pm2 startup                 # ejecuta la línea que imprime (con sudo) para autoarranque
+pm2 startup                 # run the printed line (with sudo) for boot persistence
 ```
-Comprobar:
+Verify:
 ```bash
 pm2 status
 curl -s http://127.0.0.1:4747/api/config | head -c 100
@@ -79,13 +79,13 @@ curl -s http://127.0.0.1:4747/api/config | head -c 100
 
 ---
 
-## 6. Ajustes de Nginx para SSE (importante)
+## 6. Nginx tweaks for SSE (important)
 
-El debate usa **Server-Sent Events**. La app ya envía `X-Accel-Buffering: no` y un
-*heartbeat* cada 15s, pero conviene ampliar timeouts en el vhost.
+The debate uses **Server-Sent Events**. The app already sends `X-Accel-Buffering: no` and a
+*heartbeat* every 15s, but extend timeouts in the vhost.
 
-En CloudPanel: **Sites → tu sitio → Vhost**, dentro del `location` que hace
-`proxy_pass` añade:
+In CloudPanel: **Sites → your site → Vhost**, inside the `location` that does
+`proxy_pass`, add:
 ```nginx
     proxy_set_header Connection '';
     proxy_http_version 1.1;
@@ -94,38 +94,41 @@ En CloudPanel: **Sites → tu sitio → Vhost**, dentro del `location` que hace
     proxy_read_timeout 300s;
     chunked_transfer_encoding off;
 ```
-Guarda (CloudPanel recarga Nginx). Si el bloque ya trae algunas de estas líneas,
-no las dupliques.
+Save (CloudPanel reloads Nginx). If the block already has some of these lines,
+do not duplicate them.
 
 ---
 
 ## 7. HTTPS
 
-En **Sites → tu sitio → SSL/TLS → Let's Encrypt** emite el certificado. CloudPanel
-fuerza HTTPS automáticamente. Listo: abre `https://tu-dominio.com`.
+In **Sites → your site → SSL/TLS → Let's Encrypt** issue the certificate. CloudPanel
+forces HTTPS automatically. Open `https://your-domain.com`.
 
 ---
 
-## Actualizar la app
+## Update the app
+
 ```bash
-cd /home/<site-user>/htdocs/<dominio>
+cd /home/<site-user>/htdocs/<domain>
 git pull
 npm ci --omit=dev
-pm2 restart chismellm-v2
+pm2 restart haze
 ```
 
-## Ver logs / diagnosticar
+## Logs / troubleshooting
+
 ```bash
-pm2 logs chismellm-v2          # logs en vivo
-pm2 restart chismellm-v2       # reiniciar
+pm2 logs haze                 # live logs
+pm2 restart haze              # restart
 ```
-- **502 Bad Gateway:** la app no está arriba o el puerto no coincide → `pm2 status`
-  y revisa que `PORT` = App Port.
-- **El debate se corta a la mitad:** revisa el paso 6 (timeouts/buffering del vhost).
-- **`OPENROUTER_API_KEY no está definida`:** falta el `.env` o la clave.
+- **502 Bad Gateway:** app not running or port mismatch → `pm2 status`
+  and check `PORT` = App Port.
+- **Debate cuts off mid-stream:** review step 6 (vhost timeouts/buffering).
+- **`OPENROUTER_API_KEY is not defined`:** missing `.env` or key.
 
-## Seguridad
-- `HOST=127.0.0.1`: la app nunca se expone directa, sólo vía el proxy de CloudPanel.
-- `.env` no debe subirse al repo (ya está en `.gitignore`).
-- La carpeta `examples/` contiene un archivo de demo con patrón malicioso (inofensivo,
-  no se ejecuta). Puedes borrarla en producción si lo prefieres.
+## Security
+
+- `HOST=127.0.0.1`: the app is never exposed directly, only via CloudPanel proxy.
+- `.env` must not be committed (already in `.gitignore`).
+- The `examples/` folder contains a demo file with a malicious pattern (harmless,
+  not executed). You may delete it in production if preferred.

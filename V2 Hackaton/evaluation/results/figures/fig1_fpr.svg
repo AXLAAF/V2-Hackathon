@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="460" font-family="Segoe UI, Arial, sans-serif">
+<rect width="760" height="460" fill="white"/>
+<text x="380.0" y="28" text-anchor="middle" font-size="16" font-weight="bold">Figure 1. False-positive rate by condition (lower is better)</text>
+<line x1="70" y1="350.0" x2="740" y2="350.0" stroke="#e5e7eb"/>
+<text x="62" y="354.0" text-anchor="end" font-size="11" fill="#374151">0</text>
+<line x1="70" y1="292.0" x2="740" y2="292.0" stroke="#e5e7eb"/>
+<text x="62" y="296.0" text-anchor="end" font-size="11" fill="#374151">20</text>
+<line x1="70" y1="234.0" x2="740" y2="234.0" stroke="#e5e7eb"/>
+<text x="62" y="238.0" text-anchor="end" font-size="11" fill="#374151">40</text>
+<line x1="70" y1="176.0" x2="740" y2="176.0" stroke="#e5e7eb"/>
+<text x="62" y="180.0" text-anchor="end" font-size="11" fill="#374151">60</text>
+<line x1="70" y1="118.0" x2="740" y2="118.0" stroke="#e5e7eb"/>
+<text x="62" y="122.0" text-anchor="end" font-size="11" fill="#374151">80</text>
+<line x1="70" y1="60.0" x2="740" y2="60.0" stroke="#e5e7eb"/>
+<text x="62" y="64.0" text-anchor="end" font-size="11" fill="#374151">100</text>
+<text x="18" y="205.0" text-anchor="middle" font-size="12" fill="#374151" transform="rotate(-90 18 205.0)">False-positive rate (%)</text>
+<rect x="153.8" y="263.0" width="167.5" height="87.0" fill="#dc2626"/>
+<text x="237.5" y="259.0" text-anchor="middle" font-size="10" fill="#111">30</text>
+<line x1="237.5" y1="175.1" x2="237.5" y2="318.7" stroke="#111" stroke-width="1"/>
+<line x1="233.5" y1="175.1" x2="241.5" y2="175.1" stroke="#111" stroke-width="1"/>
+<line x1="233.5" y1="318.7" x2="241.5" y2="318.7" stroke="#111" stroke-width="1"/>
+<text x="237.5" y="368.0" text-anchor="middle" font-size="12" font-weight="bold">HAZE debate (1 round)</text>
+<rect x="488.8" y="263.0" width="167.5" height="87.0" fill="#dc2626"/>
+<text x="572.5" y="259.0" text-anchor="middle" font-size="10" fill="#111">30</text>
+<line x1="572.5" y1="175.1" x2="572.5" y2="318.7" stroke="#111" stroke-width="1"/>
+<line x1="568.5" y1="175.1" x2="576.5" y2="175.1" stroke="#111" stroke-width="1"/>
+<line x1="568.5" y1="318.7" x2="576.5" y2="318.7" stroke="#111" stroke-width="1"/>
+<text x="572.5" y="368.0" text-anchor="middle" font-size="12" font-weight="bold">HAZE debate (2 rounds)</text>
+<rect x="70" y="410" width="12" height="12" fill="#dc2626"/>
+<text x="88" y="420" font-size="11" fill="#111">FPR (%)</text>
+</svg>
