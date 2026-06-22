@@ -278,9 +278,9 @@ for them; the one-command baseline is shipped as \texttt{run\_phase1.mjs}.
 Experiment & Framing & Status & Blocks central claim? \\
 \midrule
 Web eval (120 tasks) & Malware & Measured & Superseded \\
-Single-agent baseline & VULN./SAFE & \textbf{Measured} & --- \\
-HAZE debate (1 round) & VULN./SAFE & \textbf{Measured} & --- \\
-Benchmark $n{\geq}60$ & --- & Pending & Statistical power \\
+Single-agent baseline & VULN./SAFE & \textbf{Measured} & No (provides the comparison) \\
+HAZE debate (1 round) & VULN./SAFE & \textbf{Measured} & No (provides the result) \\
+Benchmark $n{\geq}60$ & VULN./SAFE & Pending & Statistical power \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -310,6 +310,39 @@ accusation survive refutation?'' and cuts FPR to \textbf{20\%} at 80\% recall an
 (Phase~1, \texttt{VULNERABLE}/\texttt{SEGURO}, $n{=}20$). McNemar $p{=}0.34$ means the
 effect is promising but underpowered; HAZE remains a reproducible, ${\sim}$USD~0.02/verdict
 audit scaffold for AI-control-style oversight in resource-constrained settings.
+
+% =============================================================================
+\section*{Reproducibility and Artifacts}
+
+\textbf{One-line summary.} HAZE (\textit{Hallucination-Aware Zero-sum Examination})
+is a multi-agent security-audit protocol---2v2 debate plus an isolated judge over
+OpenRouter---that reframes the audit question from ``is there a bug?'' to ``did this
+accusation survive refutation?''
+
+\textbf{Headline result (Phase~1, measured).} A single-agent auditor flags 80\% of
+patched code as vulnerable (100\% recall, 80\% FPR). HAZE lowers FPR to 20\% at
+80\% recall and 80\% F1---a 4$\times$ reduction in pipeline-audit hallucinations
+(McNemar $p{=}0.34$, $n{=}20$; promising but small-sample).
+
+\textbf{Built and repeatable.} A Fastify monolith with an SSE web UI and an
+OpenRouter orchestrator (five-model roster), a 10-CVE benchmark in
+\{vulnerable, patched\} variants, the \texttt{run\_phase1.mjs} harness, 120 stored
+debate transcripts, and Wilson/McNemar metrics.
+
+\textbf{Reproduce the evaluation} (${\sim}$9~min, ${\sim}$USD~2):
+\begin{verbatim}
+cd evaluation && node run_phase1.mjs
+\end{verbatim}
+
+\textbf{Links.}
+\begin{itemize}[leftmargin=*,nosep]
+  \item Live demo: \url{https://hackaton.xooktech.com/}
+  \item Repository: \url{https://github.com/AXLAAF/V2-Hackathon}
+\end{itemize}
+
+\textbf{Submission tracks (AISMX).} AI Security $\rightarrow$ Pipeline security
+(API, cloud); Responsible AI $\rightarrow$ Hallucination mitigation \& behavioral
+audit. Region: Latin America.
 
 % =============================================================================
 \section*{Code and Data}
