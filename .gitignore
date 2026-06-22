@@ -12,3 +12,7 @@ API/*.log
 V2 Hackaton/evaluation/.env
 V2 Hackaton/evaluation/results/run_web.log
 V2 Hackaton/evaluation/results/snapshots/
+V2 Hackaton/global-south-ais-template-main/*.aux
+V2 Hackaton/global-south-ais-template-main/*.log
+V2 Hackaton/global-south-ais-template-main/*.out
+.tools/

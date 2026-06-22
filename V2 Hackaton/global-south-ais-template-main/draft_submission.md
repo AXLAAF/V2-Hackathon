@@ -2,13 +2,15 @@
 
 **HAZE** (*Hallucination-Aware Zero-sum Examination*) — Automated Red Teaming via AI Safety Debate
 
+> **Core claim (one sentence):** *Single-agent auditors ask “is there a bug?” and often invent one; HAZE asks “did this accusation survive refutation?” — shifting vulnerability detection from probabilistic confidence to demonstrative scrutiny.*
+
 **Authors:** Samuel Blanco, Samuel Díaz, Axel Morales, Alex Novelo
 
-**Code and Data:** https://github.com/AXLAAF/V2-Hackathon
+**Code and Data:** https://github.com/AXLAAF/V2-Hackathon · **Live demo:** https://hackaton.xooktech.com/
 
 ## Abstract
 
-Everyone's reaching for a single LLM to hunt down vulnerabilities in code and in AI systems. It sort of works, but it carries a deep crack: the same model that *finds* a flaw is happy to *make one up* just to please you. The result is a pile of false positives — hallucinated CVEs, attack vectors you can't run, imaginary sanitizations. We take a different route with an **Automated Red Teaming** protocol built on *structured adversarial scrutiny*, grounded in **AI Safety via Debate** (Irving et al., 2018). Four LLM agents argue like in a courtroom: an **Attacker** proposes a vulnerability and traces the exploit; a **Defender** tries to knock it down with the protections that already exist; an unbiased **Investigator** anchors everything to *Ground Truth* (real CVEs, library semantics, source-code evidence); and an isolated **Judge** reads the transcript and rules — Confirmed Vulnerability or False Positive. The mindset changes: we stop trusting an "I'm 80% sure there's a bug" and start demanding that a traced exploit survive refutation. We build a ground-truth benchmark of 10 recent CVEs (paired vulnerable/patched artifacts) and run the four-role protocol on it, reporting recall, false-positive rate and a debate-depth ablation with 95% confidence intervals and an exact significance test. On this benchmark HAZE reaches **80% recall at a 30% false-positive rate**; our per-case error analysis shows the false positives are largely a *framing artifact* on minimal security-sensitive code rather than a failure of the debate, and that a second debate round did not change verdicts at this scale. The single-agent baseline — the comparison at the heart of the thesis — is shipped as a ready-to-run harness and left as the key next experiment.
+Single-agent LLM auditors treat every prompt as a hunt for a flaw — and RLHF-trained models often **manufacture findings** to satisfy it (Perez et al., 2022). We propose **HAZE**, an automated red-teaming protocol where four LLM roles debate under **AI Safety via Debate** (Irving et al., 2018): prosecution and defense cross-examine over the artifact; an **isolated judge** rules only on what survived refutation. We evaluate on a ground-truth benchmark of **10 CVEs × {vulnerable, patched} = 20 artifacts**, with 3 repeats per condition, Wilson 95% CIs, and an exact McNemar test. **Headline result:** HAZE reaches **80% recall at 30% FPR** (precision 72.7%, F1 76.2%). A structured error taxonomy shows failures cluster into three interpretable classes — visible-sink detection, cross-file blind spots, and framing-induced false alarms — not random debate noise. A second debate round changed **zero** verdicts at this scale (McNemar *p* = 1.000). The single-agent baseline — the comparison that would directly test whether debate cuts false positives — is shipped as runnable code but **not yet measured**; we report this limitation explicitly.
 
 ## 1. Introduction
 
@@ -16,10 +18,21 @@ Using LLMs to discover vulnerabilities sounds great, and it is: you get to audit
 
 **The problem, and why it breaks.** When you tell an LLM to "find the vulnerability," the model already takes for granted that the flaw is there. It's like walking into the doctor's office convinced you're sick: something will get found. Its training —maximize the odds of giving you a helpful answer, all cranked up by RLHF— pushes it to **manufacture a positive finding** even when the code is squeaky clean. It can't really tell apart "there's nothing here" from "I found nothing that matches what you asked for." And to top it off, sycophancy (Perez et al., 2022) throws more fuel on the fire: the model tends to agree with you. So what threat does this leave us with in an automated auditor? Two things. One: **false positives and hallucinations** that waste your time and, worse, drain your trust in the tool. And two: there's no *real self-correction*. An agent that thinks alone, talking out loud to itself, can't demand proof from itself. Nobody's there to push back.
 
+**Conceptual foundation (UIAA).** HAZE is grounded in [AI Control through Majority Voting](https://apartresearch.com/project/ai-control-through-majority-voting-uiaa) (Moe et al., 2025, Apart Research): **never trust a single LLM pass**. UIAA applies this at *generation* time — query an untrusted model *c* times with prompt variation, then aggregate outputs by majority vote via a trusted wrapper, driving backdoor probability down exponentially in *c*. We apply the same principle at *audit* time: a single “find the bug” prompt is one biased sample. HAZE replaces blind re-sampling with **adversarial debate + isolated judge**, while our evaluation still uses **majority verdicts over three independent repeats** — a direct UIAA-style redundancy layer. See `V2 Hackaton/docs/FOUNDATION-UIAA.md` for the full lineage.
+
 **What we bring to the table.**
 1. A **four-role adversarial architecture** (Attacker, Defender, Investigator, Judge) that takes AI Safety via Debate into the world of vulnerability detection. The **Judge is isolated on purpose**, so its context doesn't get contaminated, and the **Investigator** acts as the anchor to *Ground Truth*.
 2. A **change in the rules of how things get proven**: from probabilistic to demonstrative. Here a vulnerability only counts *iff* it survives being attacked. That way, hallucinations fall under their own weight.
 3. An **empirical evaluation protocol** with its single-agent baseline, its ground-truth labels, and its statistical tests to see whether we really do drive down false positives.
+
+**Research questions** (what this submission must answer):
+
+| # | Question | What we observe |
+|---|---|---|
+| RQ1 | Does structured debate **detect real vulnerabilities**? | Recall on 10 vulnerable artifacts |
+| RQ2 | Does it **hallucinate** on safe code? | FPR on 10 patched artifacts |
+| RQ3 | Does **debate depth** (1 vs 2 rounds) change verdicts? | Paired McNemar test, *n* = 20 |
+| RQ4 | Does debate **beat a single-agent auditor** on FPR? | Baseline harness ready; **not yet run** |
 
 ## 2. Related Work
 
@@ -32,6 +45,8 @@ Using LLMs to discover vulnerabilities sounds great, and it is: you get to audit
 **LLM-as-a-Judge.** Zheng et al. (2023) showed an LLM judge is viable —and they also laid bare its biases—. That's why we made a firm design call: *isolate* the judge from the part that generates hypotheses, to cut off sycophancy and commitment bias at the pass.
 
 **The gap we fill.** The usual red teaming is obsessed with *eliciting* failures. The usual debate work aims at *open-domain truth*. What if we glue the two together? That's what we do: a four-role debate, anchored by an Investigator with its feet on the ground, dedicated to one thing almost nobody looks at closely —killing off false positives when auditing code and models—.
+
+**AI control via majority voting.** Moe et al. (2025) show that redundant untrusted generations + majority aggregation can make backdoors exponentially unlikely. HAZE inherits the *distrust of single samples* but targets the audit-side mirror problem (hallucinated findings, not hidden backdoors) and replaces output majority with structured adversarial scrutiny before judgment.
 
 ## 3. Methods
 
@@ -169,28 +184,45 @@ HAZE is **automated red teaming of artifacts**: it lets you review, at scale, su
 
 ## 4. Results
 
-**Setup.** We built a ground-truth benchmark of **10 recent CVEs (2026)**, each shipped in a `vulnerable/` and a `patched/` version — **20 artifacts** in total. The patched file keeps the *same public interface*; only the security-relevant logic changes. Languages span PHP (Laravel, WordPress), C (telnetd, Netlogon/CLDAP, IKEv1, DHCP), Java (Jenkins/XStream), Python (Flask), JavaScript (Node) and an NGINX configuration. We ran the **deployed HAZE instance** (`hackaton.xooktech.com`) over its SSE API with the default roster — DeepSeek-V3, Gemini-2.0-Flash, GPT-4o-mini and Llama-3.1-70B as the four debaters and **Claude Sonnet 4.5 as the isolated judge** — at temperatures 0.7 (debaters) / 0.1 (judge). Each artifact was analyzed in **3 independent repeats**; we report the **majority verdict**. The deployed prototype uses the *malicious-software* framing (`MALICIOUS` / `NOT_MALICIOUS`); we map `MALICIOUS` to a positive ("flagged") prediction, so **recall** is the detection rate on vulnerable code and **FPR** the false-alarm rate on patched code.
+### 4.1 Setup
 
-**Headline result.** Over the 20 artifacts, HAZE reaches **80.0% recall** (8/10 vulnerable detected) at a **30.0% false-positive rate** (3/10 patched flagged), with precision 72.7% and F1 76.2%.
+We built a ground-truth benchmark of **10 recent CVEs (2026)**, each shipped in a `vulnerable/` and a `patched/` version — **20 artifacts** in total. The patched file keeps the *same public interface*; only the security-relevant logic changes. Languages span PHP (Laravel, WordPress), C (telnetd, Netlogon/CLDAP, IKEv1, DHCP), Java (Jenkins/XStream), Python (Flask), JavaScript (Node) and an NGINX configuration.
 
-**Table 1. Detection metrics by condition (majority over 3 repeats, 95% Wilson CIs).**
+We ran the **deployed HAZE instance** ([hackaton.xooktech.com](https://hackaton.xooktech.com)) over its SSE API with the default roster — DeepSeek-V3, Gemini-2.0-Flash, GPT-4o-mini and Llama-3.1-70B as the four debaters and **Claude Sonnet 4.5 as the isolated judge** — at temperatures 0.7 (debaters) / 0.1 (judge). Each artifact was analyzed in **3 independent repeats**; we report the **majority verdict**. The deployed prototype uses the *malicious-software* framing (`MALICIOUS` / `NOT_MALICIOUS`); we map `MALICIOUS` to a positive ("flagged") prediction, so **recall** is the detection rate on vulnerable code and **FPR** the false-alarm rate on patched code.
 
-| Condition | Precision | Recall | FPR | Accuracy | F1 | TP/FP/TN/FN |
+### 4.2 Headline result
+
+> **80% recall · 30% FPR · 76.2% F1** on 20 labeled artifacts (8 TP, 3 FP, 7 TN, 2 FN).
+
+### 4.3 Table 1 — Measured vs pending conditions
+
+| Condition | Precision | Recall | FPR | F1 | TP/FP/TN/FN | Status |
 |---|---|---|---|---|---|---|
-| HAZE debate (2 rounds) | 72.7% [43.4, 90.3] | 80.0% [49.0, 94.3] | 30.0% [10.8, 60.3] | 75.0% [53.1, 88.8] | 76.2% | 8/3/7/2 |
-| HAZE debate (1 round) | 72.7% [43.4, 90.3] | 80.0% [49.0, 94.3] | 30.0% [10.8, 60.3] | 75.0% [53.1, 88.8] | 76.2% | 8/3/7/2 |
+| **Single-agent baseline** ("find the vulnerability", 1 pass) | — | — | — | — | — | **Harness ready; not yet run** |
+| HAZE debate (2 rounds) | 72.7% [43.4, 90.3] | 80.0% [49.0, 94.3] | 30.0% [10.8, 60.3] | 76.2% | 8/3/7/2 | Measured |
+| HAZE debate (1 round) | 72.7% [43.4, 90.3] | 80.0% [49.0, 94.3] | 30.0% [10.8, 60.3] | 76.2% | 8/3/7/2 | Measured (ablation) |
 
-**Debate-depth ablation.** Running the identical protocol at **1 vs 2 rounds** produces the same aggregate confusion matrix (8/3/7/2). An exact **McNemar test on the paired per-artifact verdicts gives p = 1.000** (only 2 discordant artifacts, n = 20): at this scale a second adversarial round did not change the judge's decisions. We report this honestly — the depth knob, by itself, did not move the needle here.
+Wilson 95% confidence intervals in brackets. The baseline row is intentionally empty: RQ4 — whether debate reduces FPR vs a single prompt — is the **central thesis** and remains the key pending experiment (`evaluation/run_eval.mjs`).
 
-**Error analysis — where it works and where it breaks.**
+### 4.4 Debate-depth ablation (RQ3)
 
-- *True positives (8/10).* HAZE reliably flags vulnerabilities with a **visible dangerous sink** in the artifact text: OS-command injection (CVE-2026-10520), `eval()` RCE (44262), telnetd `-f root` argument injection (24061), insecure XStream deserialization (53435), the Netlogon/CLDAP and DHCP `memcpy` overflows (41089, 44815), the IKEv1 authentication bypass (50751) and the weak password reset (5076).
-- *False negatives (2/10).* It misses the **NGINX "Rift" heap overflow (42945)** — whose root cause lives in the C rewrite module, not in the `nginx.conf` we hand the judge — and the **LibreChat MCP secret exfiltration (32625)**, a subtle `${VAR}` interpolation that reads like ordinary templating. Both are vulnerabilities that are *not* visible as "malicious patterns" in the artifact text.
-- *False positives (3/10).* It flags the **patched** C parsers of telnetd (24061), Netlogon (41089) and the DHCP client (44815). These fixes add bounds/length validation, but the files still contain security-sensitive primitives (`memcpy`, `execl`), and the *malware* framing cannot tell a *fixed* parser from a *dangerous-looking* one.
+Running the identical protocol at **1 vs 2 rounds** produces the same aggregate confusion matrix (8/3/7/2). An exact **McNemar test on paired per-artifact verdicts gives *p* = 1.000** (only 2 discordant artifacts, *n* = 20): at this scale, a second adversarial round did not change the judge's decisions. We report this honestly — the depth knob, by itself, did not move the needle here.
 
-**Reading of the result.** The 30% FPR is **largely a framing artifact, not a debate failure**: on minimal, security-sensitive snippets, the question "is this malware?" does not cleanly separate *vulnerable* from *patched*. This is precisely the motivation for the vulnerability-specific framing (`VULNERABLE` / `SAFE`), which we ship as a ready-to-run harness (see Code and Data) but did **not** run on the deployed instance.
+### 4.5 Table 2 — Error taxonomy (where HAZE succeeds and fails)
 
-**Robustness and honesty.** With N = 20 the 95% Wilson intervals are wide (e.g., FPR 30% [10.8, 60.3]); we report them rather than point estimates alone, and we use the exact McNemar test for the paired comparison. Crucially, the **single-agent baseline — the comparison at the heart of our thesis — was not run here**: the deployed API only exposes the full four-agent debate, so a clean "one model, one pass" baseline remains the key pending experiment. We provide the baseline as runnable code so that the central claim can be measured directly.
+Failures cluster into **three interpretable classes**, not random noise — analogous to how omission-attack research taxonomizes evasion modes before measuring them.
+
+| Class | Mechanism | Count | Representative CVEs | Implication |
+|---|---|---|---|---|
+| **A — Visible-sink detection** | Dangerous primitive or sink is explicit in the artifact text (`eval`, `memcpy`, `system`, weak auth) | **8 TP** | 10520, 44262, 24061, 53435, 41089, 44815, 50751, 5076 | Debate + judge reliably flag when evidence is *in the file* |
+| **B — Cross-file / logic blind spot** | Root cause lives outside the artifact (module, config, subtle templating) | **2 FN** | 42945 (NGINX C module, not in `.conf`), 32625 (MCP `${VAR}` interpolation) | Single-file, malware-framed audit misses non-local flaws |
+| **C — Framing-induced false alarm** | Patched code retains security-sensitive primitives; "is this malware?" cannot separate fixed from vulnerable | **3 FP** | 24061, 41089, 44815 (patched C parsers) | FPR driven by **task framing**, not debate failure; motivates `VULNERABLE`/`SAFE` reframing |
+
+**Reading.** Class C explains most of the 30% FPR: on minimal security-sensitive snippets, the question "is this malware?" does not cleanly separate *vulnerable* from *patched*. Class B explains both false negatives. Class A is where HAZE adds clear value today.
+
+### 4.6 Robustness and honesty
+
+With *N* = 20 the 95% Wilson intervals are wide (e.g., FPR 30% [10.8, 60.3]); we report them rather than point estimates alone. We use the exact McNemar test for the paired 1-vs-2-round comparison. **What we can claim now:** structured debate detects visible-sink vulnerabilities at 80% recall; errors are taxonomized and mostly traceable to framing and artifact scope, not unstructured hallucination. **What we cannot claim yet:** that debate beats single-agent auditing on FPR (RQ4) — the baseline is shipped but not executed on this benchmark.
 
 ![Figure 1. False-positive rate by condition (lower is better); error bars are 95% Wilson CIs.](../evaluation/results/figures/fig1_fpr.svg)
 
@@ -208,9 +240,9 @@ HAZE is **automated red teaming of artifacts**: it lets you review, at scale, su
 
 ## 6. Conclusion
 
-If you want automated vulnerability detection you can trust, you have to move past the single-agent auditor, which by how it's trained rewards inventing findings. The path we propose is **structured adversarial scrutiny**. You put four LLM roles —Attacker, Defender, Investigator, and an isolated Judge— to play an AI-Safety-via-Debate game, and a vulnerability gets confirmed when a traced exploit holds up against refutation and against being anchored in the data. What used to be an "I'm pretty sure" becomes a real burden of proof.
+Single-agent auditors ask *"is there a bug?"* and often invent one. HAZE asks *"did this accusation survive refutation?"* — **demonstrative scrutiny** over probabilistic confidence. On a 20-artifact CVE benchmark, structured 2v2 debate with an isolated judge reaches **80% recall at 30% FPR**; failures taxonomize into visible-sink detection (works), cross-file blind spots (misses), and framing-induced false alarms (fixable by reframing), not unstructured debate noise.
 
-If this validates, it drives down false positives without wrecking recall and leaves you a reproducible template for scalable oversight. The underlying idea: use adversarial debate to carry failures all the way to *verification*, to a bar that gets close to a human security reviewer's.
+The thesis that debate **cuts false positives vs a single agent** remains testable but unmeasured — the baseline harness is shipped. If validated, HAZE offers a reproducible template for scalable oversight: shift the burden from generating findings to **verifying** which accusations survive adversarial cross-examination.
 
 ## Code and Data
 
@@ -234,6 +266,8 @@ Ganguli, D., Lovitt, L., Kernion, J., Askell, A., Bai, Y., Kadavath, S., … Cla
 Irving, G., Christiano, P., & Amodei, D. (2018). *AI safety via debate*. arXiv. https://arxiv.org/abs/1805.00899
 
 Khan, A., Hughes, J., Valentine, D., Ruis, L., Sachan, K., Radhakrishnan, A., … Perez, E. (2024). *Debating with more persuasive LLMs leads to more truthful answers*. arXiv. https://arxiv.org/abs/2402.06782
+
+Moe, A., Wale, W., & Sunde, J. H. (2025). *AI Control through Majority Voting*. Apart Research. https://apartresearch.com/project/ai-control-through-majority-voting-uiaa
 
 Perez, E., Huang, S., Song, F., Cai, T., Ring, R., Aslanides, J., … Irving, G. (2022). *Red teaming language models with language models*. arXiv. https://arxiv.org/abs/2202.03286
 
