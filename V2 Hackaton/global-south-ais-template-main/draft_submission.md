@@ -10,7 +10,7 @@
 
 ## Abstract
 
-Single-agent LLM auditors treat every prompt as a hunt for a flaw — and RLHF-trained models often **manufacture findings** to satisfy it (Perez et al., 2022). We propose **HAZE**, an automated red-teaming protocol where four LLM roles debate under **AI Safety via Debate** (Irving et al., 2018): prosecution and defense cross-examine over the artifact; an **isolated judge** rules only on what survived refutation. We evaluate on a ground-truth benchmark of **10 CVEs × {vulnerable, patched} = 20 artifacts**, with 3 repeats per condition, Wilson 95% CIs, and an exact McNemar test. **Headline result:** HAZE reaches **80% recall at 30% FPR** (precision 72.7%, F1 76.2%). A structured error taxonomy shows failures cluster into three interpretable classes — visible-sink detection, cross-file blind spots, and framing-induced false alarms — not random debate noise. A second debate round changed **zero** verdicts at this scale (McNemar *p* = 1.000). The single-agent baseline — the comparison that would directly test whether debate cuts false positives — is shipped as runnable code but **not yet measured**; we report this limitation explicitly.
+Single-agent LLM auditors treat every prompt as a hunt for a flaw — and RLHF-trained models often **manufacture findings** to satisfy it (Perez et al., 2022). We propose **HAZE**, an automated red-teaming protocol where four LLM roles debate under **AI Safety via Debate** (Irving et al., 2018): prosecution and defense cross-examine over the artifact; an **isolated judge** rules only on what survived refutation. We evaluate on a ground-truth benchmark of **10 CVEs × {vulnerable, patched} = 20 artifacts**, with 3 repeats per condition, Wilson 95% CIs, and an exact McNemar test. **Headline result:** HAZE reaches **80% recall at 30% FPR** (precision 72.7%, F1 76.2%). A structured error taxonomy shows failures cluster into three interpretable classes — visible-sink detection, cross-file blind spots, and framing-induced false alarms — not random debate noise. A second debate round changed **zero** verdicts at this scale (McNemar *p* = 1.000). The full benchmark (120 debates, five models) cost **~USD 2.3** in OpenRouter tokens (~**$0.02 per verdict**) — practical for Global South teams without local GPUs. The single-agent baseline — the comparison that would directly test whether debate cuts false positives — is shipped as runnable code but **not yet measured**; we report this limitation explicitly.
 
 ## 1. Introduction
 
@@ -206,7 +206,11 @@ Wilson 95% confidence intervals in brackets. The baseline row is intentionally e
 
 ### 4.4 Debate-depth ablation (RQ3)
 
-Running the identical protocol at **1 vs 2 rounds** produces the same aggregate confusion matrix (8/3/7/2). An exact **McNemar test on paired per-artifact verdicts gives *p* = 1.000** (only 2 discordant artifacts, *n* = 20): at this scale, a second adversarial round did not change the judge's decisions. We report this honestly — the depth knob, by itself, did not move the needle here.
+Running the identical protocol at **1 vs 2 rounds** produces the same aggregate confusion matrix (8/3/7/2). An exact **McNemar test on paired per-artifact verdicts gives *p* = 1.000** (only 2 discordant artifacts, *n* = 20): at this scale, a second adversarial round did not change the judge's decisions. We report this honestly — the depth knob, by itself, did not move the needle here. **Actionable implication:** default to 1 round to halve API cost and latency until round-2 prompts force explicit line-by-line rebuttal (patched post-hackathon).
+
+### 4.4b Cost efficiency
+
+The complete web evaluation (**120 labeled verdicts**, five-model roster, 1–2 debate rounds, three repeats) consumed **~USD 2.3** in OpenRouter tokens (~**$0.019 per task**, ~42 minutes wall-clock). A Global South team without local GPUs can re-run the full benchmark overnight for the price of a coffee. This is a deliberate design choice: HAZE routes inference through OpenRouter rather than requiring owned hardware.
 
 ### 4.5 Table 2 — Error taxonomy (where HAZE succeeds and fails)
 
@@ -236,13 +240,13 @@ With *N* = 20 the 95% Wilson intervals are wide (e.g., FPR 30% [10.8, 60.3]); we
 
 **Empirical limitations (this run).** (i) **No single-agent baseline was run**: the deployed instance only exposes the four-agent debate, so the headline multi-agent-vs-single-agent comparison is not yet measured (code is provided). (ii) **Framing mismatch**: the deployed prototype judges *malware*, while the benchmark is CWE *vulnerabilities*; this inflates FPR on patched-but-security-sensitive C and lowers recall on config-/logic-level flaws (NGINX, MCP). (iii) **Small N (20 artifacts)** yields wide CIs; results are indicative, not conclusive. (iv) The benchmark uses **didactic, single-file** snippets, which favor visible sinks and penalize cross-file/runtime bugs.
 
-**What's next.** Putting a human in the loop (human-in-the-loop) to validate the synthetic verdicts; cross-model judges that break the shared errors; going from per-file reasoning to whole-repository and runtime; and digging into how well-calibrated the judge's confidence really is.
+**What's next (priority order).** (1) Run the single-agent baseline (`run_eval.mjs`) — the critical missing experiment. (2) Re-evaluate with `VULNERABLE`/`SAFE` framing to fix Class C. (3) Expand benchmark to *n* ≥ 50 CVEs. (4) Implement Investigator (NVD/OSV). (5) Dynamic early-stop / default 1 round given McNemar. (6) RAG for cross-file Class B flaws.
 
 ## 6. Conclusion
 
-Single-agent auditors ask *"is there a bug?"* and often invent one. HAZE asks *"did this accusation survive refutation?"* — **demonstrative scrutiny** over probabilistic confidence. On a 20-artifact CVE benchmark, structured 2v2 debate with an isolated judge reaches **80% recall at 30% FPR**; failures taxonomize into visible-sink detection (works), cross-file blind spots (misses), and framing-induced false alarms (fixable by reframing), not unstructured debate noise.
+Single-agent auditors ask *"is there a bug?"* and often invent one. HAZE asks *"did this accusation survive refutation?"* — **demonstrative scrutiny** over probabilistic confidence. On a 20-artifact CVE benchmark, structured 2v2 debate with an isolated judge reaches **80% recall at 30% FPR** at **~USD 0.02 per verdict**; failures taxonomize into visible-sink detection (works), cross-file blind spots (misses), and framing-induced false alarms (fixable by reframing), not unstructured debate noise.
 
-The thesis that debate **cuts false positives vs a single agent** remains testable but unmeasured — the baseline harness is shipped. If validated, HAZE offers a reproducible template for scalable oversight: shift the burden from generating findings to **verifying** which accusations survive adversarial cross-examination.
+We do **not** claim debate beats single-agent auditing until the baseline is run — the harness is shipped and the gap is reported honestly. HAZE is a reproducible, cost-efficient scaffold for AI-control-style auditing in resource-constrained settings.
 
 ## Code and Data
 

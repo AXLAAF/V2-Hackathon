@@ -9,8 +9,9 @@
 2. **Title & abstract** (included in PDF)
 3. **Author names & affiliations** (included in PDF)
 4. **Track & sub-track** (included in PDF):
-   - AI Security → Pipeline security (API, cloud)
-   - Responsible AI → Hallucination mitigation & behavioral audit
+   - **Region:** Latin America (AISMX — México)
+   - **Track:** AI Security → **Sub-track:** Pipeline security (API, cloud)
+   - **Secondary track:** Responsible AI → **Sub-track:** Hallucination mitigation & behavioral audit
 
 ## Compile PDF
 

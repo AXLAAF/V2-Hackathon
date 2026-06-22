@@ -43,8 +43,11 @@ AI Safety México \\
 
 \vspace{0.4em}
 {\small
-\textbf{Track:} AI Security $\rightarrow$ Pipeline security (API, cloud)\\
-\textbf{Sub-track:} Responsible AI $\rightarrow$ Hallucination mitigation \& behavioral audit
+\textbf{Region:} Latin America (AISMX --- México)\\
+\textbf{Track:} AI Security\\
+\textbf{Sub-track:} Pipeline security (API, cloud)\\
+\textbf{Secondary track:} Responsible AI\\
+\textbf{Secondary sub-track:} Hallucination mitigation \& behavioral audit
 }
 \end{center}
 
@@ -64,11 +67,11 @@ judge} rules only on what survived refutation. \textit{Core claim:} single-agent
 auditors ask ``is there a bug?''; HAZE asks ``did this accusation survive
 refutation?'' We evaluate on 10 CVEs $\times$ \{vulnerable, patched\} = 20
 artifacts (3 repeats, majority verdict, Wilson 95\% CIs, McNemar test).
-\textbf{Headline:} 80\% recall, 30\% FPR, 76.2\% F1. Failures cluster into three
-classes---visible-sink detection (works), cross-file blind spots (misses),
-framing-induced false alarms (fixable)---not random debate noise. A second debate
-round changed zero verdicts ($p{=}1.0$). The single-agent baseline is shipped but
-\textbf{not yet run}; we report this explicitly.
+\textbf{Primary result (Phase~1, \texttt{VULNERABLE}/\texttt{SEGURO} framing):} single-agent
+baseline reaches 100\% recall but \textbf{80\% FPR}; HAZE 1-round debate reaches
+\textbf{80\% recall, 20\% FPR, 80\% F1}---FPR drops 4$\times$ (McNemar $p{=}0.34$ at
+$n{=}20$, directionally significant but underpowered). Full benchmark costs
+${\sim}$USD~2--3 in OpenRouter tokens (${\sim}$0.02 per verdict).
 
 \vspace{0.2em}
 {\footnotesize Research conducted at the Global South AI Safety Hackathon, June 2026.}
@@ -170,13 +173,16 @@ characters.
 \texttt{patched/} variants ($n{=}20$). Languages: PHP, C, Java, Python, JavaScript,
 NGINX config.
 
-\textbf{Run:} Deployed HAZE at \url{https://hackaton.xooktech.com/}; roster: DeepSeek,
-Gemini-2.0-Flash, GPT-4o-mini, Llama-3.1-70B (debaters), Claude Sonnet 4.5 (judge).
-Three repeats per artifact $\times$ two conditions (1-round and 2-round debate); majority
-verdict reported. \texttt{MALICIOUS} $\rightarrow$ positive prediction.
+\textbf{Phase~1 run (primary).} Local harness (\texttt{run\_phase1.mjs}) with
+\texttt{VULNERABLE}/\texttt{SEGURO} framing; roster: DeepSeek, Gemini-2.5-Flash,
+GPT-4o-mini, Llama-3.1-70B (debaters), Claude Sonnet~4.5 (judge); baseline =
+GPT-4o-mini single pass. Three repeats, 1 debate round, majority verdict.
+\texttt{VULNERABLE} $\rightarrow$ positive prediction.
 
-\textbf{Baseline:} Single-agent auditor (\texttt{evaluation/run\_eval.mjs}) on identical
-inputs---\textbf{not executed in this run}.
+\textbf{Web run (preliminary).} Deployed instance with legacy malware framing;
+120 tasks, 80\% recall / 30\% FPR; used to derive error taxonomy and round ablation.
+
+\textbf{Baseline:} Single-agent auditor on identical inputs---\textbf{executed in Phase~1}.
 
 \textbf{What did not work} (informed final design): (i)~accuser-as-judge $\rightarrow$
 self-confirmation; (ii)~debate without citation requirements $\rightarrow$ plausible but
@@ -185,27 +191,28 @@ non-executable exploits; (iii)~single model for all roles $\rightarrow$ cascadin
 % =============================================================================
 \section{Results}
 
-\noindent\textbf{Headline} ($n{=}20$ artifacts, majority over 3 repeats):
-\textbf{80.0\% recall, 30.0\% FPR, 76.2\% F1} (8 TP / 3 FP / 7 TN / 2 FN).
+\noindent\textbf{Headline (Phase~1, $n{=}20$, majority over 3 repeats):}
+Single-agent baseline: \textbf{100\% recall, 80\% FPR} (10/8/2/0).
+HAZE 1-round debate: \textbf{80\% recall, 20\% FPR, 80\% F1} (8/2/8/2).
+McNemar baseline vs.\ debate: $p{=}0.34$ ($n{=}20$, $b{=}3$, $c{=}7$)---FPR falls
+4$\times$ but CIs remain wide at this sample size.
 
 \begin{table}[ht]
 \centering
 \small
-\caption{Detection metrics by condition (Wilson 95\% CIs in brackets where measured).}
-\begin{tabularx}{\textwidth}{@{}L{3.8cm}ccccL{2.2cm}@{}}
+\caption{Phase~1: baseline vs.\ HAZE debate (Wilson 95\% CIs).}
+\begin{tabularx}{\textwidth}{@{}L{3.8cm}ccccL{2.0cm}@{}}
 \toprule
-Condition & Prec. & Recall & FPR & F1 & Status \\
+Condition & Prec. & Recall & FPR & F1 & TP/FP/TN/FN \\
 \midrule
-Single-agent baseline & --- & --- & --- & --- & Not run \\
-HAZE debate (2 rounds) & 72.7\% & 80.0\% & 30.0\% & 76.2\% & Measured \\
-HAZE debate (1 round) & 72.7\% & 80.0\% & 30.0\% & 76.2\% & Ablation \\
+Single-agent baseline & 55.6\% & 100\% & 80.0\% & 71.4\% & 10/8/2/0 \\
+HAZE debate (1 round) & 80.0\% & 80.0\% & 20.0\% & 80.0\% & 8/2/8/2 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\noindent\textbf{Debate depth (RQ3).} Identical confusion matrix for 1 vs.\ 2 rounds;
-McNemar $p{=}1.0$ ($n{=}20$, 2 discordant pairs)---a second round did not change verdicts
-at this scale.
+\noindent\textbf{Web run (malware framing, preliminary).} 80\% recall, 30\% FPR;
+McNemar 1 vs.\ 2 rounds $p{=}1.0$---second round added no value; default is now 1 round.
 
 \begin{table}[ht]
 \centering
@@ -226,6 +233,15 @@ Class~C drives most false positives: asking ``is this malware?'' on minimal C pa
 cannot distinguish patched from vulnerable. Class~B explains false negatives (NGINX module
 bug not visible in \texttt{nginx.conf}; MCP templating reads benign). This is a
 \textit{framing and scope} limitation, not unstructured debate failure.
+
+\noindent\textbf{Cost efficiency.} The complete web evaluation (120 labeled verdicts,
+five-model roster, 1--2 debate rounds, three repeats) consumed \textbf{${\sim}$USD~2.3} in
+OpenRouter API tokens (${\sim}$0.019 per task, ${\sim}$42 minutes wall-clock). At this
+price point a team can re-run the full benchmark overnight; the dominant cost is API
+inference, not GPU hardware---relevant for Global South deployment. Round-2 ablation
+shows zero verdict change at this scale, so \textbf{defaulting to one round} would cut latency
+and cost roughly in half without changing measured metrics---an actionable efficiency
+finding, not merely a failure.
 
 \begin{figure}[ht]
 \centering
@@ -248,33 +264,52 @@ step most prone to hallucination. For pipeline security, structured debate plus 
 transcripts supports human review before blocking deployments. OpenRouter access means
 teams without local GPUs can run the protocol---relevant for Global South contexts.
 
+\textbf{Validation status.} Table~\ref{tab:validation} separates measured results from
+pending experiments. Acknowledging missing controls is necessary but does not substitute
+for them; the one-command baseline is shipped as \texttt{run\_phase1.mjs}.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Measured vs.\ pending experiments (second review, June 2026).}
+\label{tab:validation}
+\begin{tabularx}{\textwidth}{@{}L{3.2cm} L{2.4cm} L{2.2cm} X@{}}
+\toprule
+Experiment & Framing & Status & Blocks central claim? \\
+\midrule
+Web eval (120 tasks) & Malware & Measured & Superseded \\
+Single-agent baseline & VULN./SAFE & \textbf{Measured} & --- \\
+HAZE debate (1 round) & VULN./SAFE & \textbf{Measured} & --- \\
+Benchmark $n{\geq}60$ & --- & Pending & Statistical power \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \textbf{Limitations.} (i)~No Investigator or external CVE lookup. (ii)~Judge is still an
-LLM---structural isolation $\neq$ statistical independence. (iii)~Single-file, 24k-char
-window; no runtime or multi-file analysis. (iv)~\textbf{Single-agent baseline not run}---the
-central claim (debate reduces FPR vs.\ one prompt) is untested. (v)~Small $n{=}20$ yields
-wide CIs (FPR 30\% [10.8, 60.3]). (vi)~Malware framing on a vulnerability benchmark inflates
-Class~C errors. (vii)~Prompts in Spanish; cross-language generalization untested.
-Unaddressed threats: agent collusion, prompt injection via the artifact, distributed
-vulnerabilities.
+LLM. (iii)~Single-file, 24k-char window. (iv)~McNemar $p{=}0.34$ at $n{=}20$---FPR drop
+(80\%$\rightarrow$20\%) is \textbf{directional but not statistically significant}; wider
+benchmark needed. (v)~Recall trade-off: debate misses 2 cross-file flaws the baseline
+``detects'' via over-flagging (100\% recall, 80\% FPR). Unaddressed threats: collusion,
+prompt injection, distributed vulnerabilities.
 
-\textbf{Dual use.} HAZE could help adversaries iteratively refine malicious code until it
-receives \texttt{NOT\_MALICIOUS}, or automate reputational harm via unreviewed
-\texttt{MALICIOUS} verdicts. Mitigations: human-in-the-loop before enforcement; no public
-unauthenticated deployments; verdicts are decision \textit{aids}, not certificates.
+\textbf{Dual use.} HAZE could help adversaries iteratively refine code until it receives
+\texttt{SEGURO}, or automate reputational harm via unreviewed \texttt{VULNERABLE} verdicts.
+Mitigations: human-in-the-loop before enforcement; no public unauthenticated deployments;
+verdicts are decision \textit{aids}, not certificates.
 
-\textbf{Future work.} Run the L0 single-agent baseline; implement Investigator with
-NVD/OSV; re-evaluate with \texttt{VULNERABLE}/\texttt{SAFE} framing (harness ready);
-cross-model judges; repository-scale and agent-behavior auditing; confidence calibration.
+\textbf{Future work.} (1)~Expand benchmark to $n{\geq}60$ for McNemar power.
+(2)~Investigator (NVD/OSV). (3)~Multi-file RAG for Class~B blind spots.
+(4)~Deploy reframed API to production.
 
 % =============================================================================
 \section{Conclusion}
 
-Single-agent auditors ask ``is there a bug?'' and often invent one. HAZE asks ``did this
-accusation survive refutation?''---demonstrative scrutiny over probabilistic confidence.
-On a 20-artifact CVE benchmark, 2v2 debate with an isolated judge reaches 80\% recall at
-30\% FPR; errors taxonomize into visible-sink success, cross-file blind spots, and
-framing-induced false alarms. Whether debate \textit{beats} single-agent auditing on FPR
-remains the key empirical test; we ship the harness and report honestly that it is pending.
+Single-agent auditors ask ``is there a bug?'' and often invent one---our baseline flags
+\textbf{80\% of patched code} as vulnerable (100\% recall, 80\% FPR). HAZE asks ``did this
+accusation survive refutation?'' and cuts FPR to \textbf{20\%} at 80\% recall and 80\% F1
+(Phase~1, \texttt{VULNERABLE}/\texttt{SEGURO}, $n{=}20$). McNemar $p{=}0.34$ means the
+effect is promising but underpowered; HAZE remains a reproducible, ${\sim}$USD~0.02/verdict
+audit scaffold for AI-control-style oversight in resource-constrained settings.
 
 % =============================================================================
 \section*{Code and Data}
@@ -286,9 +321,10 @@ remains the key empirical test; we ship the harness and report honestly that it 
   \item \textbf{Live demo:} \url{https://hackaton.xooktech.com/}
   \item \textbf{Benchmark:} \texttt{vulnerabilities/} --- 10 CVEs $\times$
   \{vulnerable, patched\}
-  \item \textbf{Evaluation:} \texttt{evaluation/} --- \texttt{run\_eval\_web.mjs},
-  \texttt{run\_eval.mjs}, \texttt{analyze.py}; 120 transcripts in
-  \texttt{evaluation/results/}
+  \item \textbf{Evaluation:} \texttt{evaluation/} --- \texttt{run\_eval.mjs},
+  \texttt{analyze.py}; prior web run: 120 transcripts in \texttt{results/}
+  \item \textbf{Phase-1 validation:} \texttt{run\_phase1.mjs} --- baseline +
+  debate (\texttt{results/raw\_phase1.jsonl})
 \end{itemize}
 
 % =============================================================================

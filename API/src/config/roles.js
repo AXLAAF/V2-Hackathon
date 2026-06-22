@@ -1,7 +1,5 @@
 // Definición de equipos, roles y modelos por defecto.
-// Cada rol es interpretado por un modelo de OpenRouter distinto.
-// Los modelos por defecto son sólo sugerencias: la UI permite cambiar
-// cualquiera por otro slug válido de OpenRouter (GET /api/models).
+// Encuadre AppSec: detectar vulnerabilidades explotables (VULNERABLE / SEGURO).
 
 export const TEAMS = {
   ACUSACION: 'acusacion',
@@ -9,7 +7,6 @@ export const TEAMS = {
   TRIBUNAL: 'tribunal',
 };
 
-// Roster de debatientes (2 vs 2). El orden define los turnos del debate.
 export const ROLES = [
   {
     id: 'fiscal_analista',
@@ -21,19 +18,19 @@ export const ROLES = [
     persona:
       'un analista forense de seguridad ofensiva que trabaja para la ACUSACIÓN',
     objective:
-      'identificar y exponer EVIDENCIA TÉCNICA concreta de comportamiento malicioso o peligroso en el artefacto: backdoors, exfiltración de datos, ejecución remota de código (RCE), shells inversas, ofuscación, código que se auto-modifica, descargas dinámicas de payloads, dependencias comprometidas o typosquatting, llamadas de red sospechosas, accesos a credenciales/ficheros sensibles, o telemetría encubierta. Debes citar números de línea, nombres de funciones o fragmentos EXACTOS como prueba.',
+      'identificar y exponer EVIDENCIA TÉCNICA concreta de una vulnerabilidad explotable (inyección de código/comandos, desbordamiento, bypass de autenticación, deserialización insegura, exposición de secretos, reset de credenciales débil). Nombra el CWE probable y traza cómo un atacante llegaría al sink. Cita líneas, funciones o fragmentos EXACTOS.',
   },
   {
     id: 'defensa_auditor',
     team: TEAMS.DEFENSA,
     name: 'Auditor',
     title: 'Auditor Técnico de la Defensa',
-    defaultModel: 'google/gemini-2.0-flash-001',
+    defaultModel: 'google/gemini-2.5-flash',
     color: '#3b82f6',
     persona:
       'un auditor técnico imparcial que trabaja para la DEFENSA',
     objective:
-      'explicar el PROPÓSITO LEGÍTIMO y el contexto benigno del código. Demostrar que los patrones señalados por la acusación tienen usos normales y esperables (por ejemplo: telemetría con consentimiento, reflexión legítima, peticiones de red a APIs declaradas, etc.). Aportar contexto técnico que descarte la intención maliciosa, citando líneas y prácticas estándar.',
+      'explicar por qué el artefacto es SEGURO: señala validación de entrada, allow-lists, comprobaciones de límites, llamadas parametrizadas/escapadas, comparaciones en tiempo constante u otras mitigaciones presentes en el código. Demuestra que no se cumplen las precondiciones del exploit. Cita líneas exactas.',
   },
   {
     id: 'fiscal_abogado',
@@ -44,7 +41,7 @@ export const ROLES = [
     color: '#dc2626',
     persona: 'el Fiscal Jefe que sostiene la acusación ante el tribunal',
     objective:
-      'construir un caso sólido de que el artefacto ES MALICIOSO o representa un riesgo inaceptable, sintetizando la evidencia de tu Analista Forense y refutando los argumentos de la Defensa. Sé persuasivo pero riguroso: no inventes evidencia que no exista en el código.',
+      'construir un caso riguroso de que el artefacto CONTIENE UNA VULNERABILIDAD EXPLOTABLE, sintetizando la evidencia del Analista Forense y refutando a la Defensa. Sé persuasivo pero nunca inventes evidencia ausente del código. Si el código está mitigado, reconócelo.',
   },
   {
     id: 'defensa_abogado',
@@ -53,13 +50,12 @@ export const ROLES = [
     title: 'Abogado Defensor',
     defaultModel: 'meta-llama/llama-3.1-70b-instruct',
     color: '#2563eb',
-    persona: 'el Abogado Defensor que defiende la inocencia del artefacto',
+    persona: 'el Abogado Defensor que sostiene que el artefacto no es explotable',
     objective:
-      'demostrar que el artefacto NO es malicioso, refutando punto por punto la acusación con argumentos técnicos. Apóyate en el análisis de tu Auditor. Señala falta de evidencia, falsos positivos y explicaciones benignas. No niegues evidencia técnica innegable: en ese caso minimiza su severidad o cuestiona la intención.',
+      'refutar la acusación punto por punto con argumentos técnicos, apoyándote en el Auditor. Señala precondiciones faltantes, mitigaciones presentes y falsos positivos. No niegues evidencia técnica innegable; si existe un fallo real, dilo con honestidad.',
   },
 ];
 
-// El Juez no debate: escucha todo y emite el veredicto final.
 export const JUDGE = {
   id: 'juez',
   team: TEAMS.TRIBUNAL,
@@ -69,7 +65,6 @@ export const JUDGE = {
   color: '#a855f7',
 };
 
-// Orden de intervención dentro de cada ronda (alterna acusación/defensa).
 export const TURN_ORDER = [
   'fiscal_analista',
   'defensa_auditor',
@@ -78,11 +73,11 @@ export const TURN_ORDER = [
 ];
 
 export const DEFAULTS = {
-  rounds: 2,
+  rounds: 1,
   maxArtifactChars: 24000,
+  earlyStop: true,
 };
 
-// Devuelve la metadata pública (sin lógica interna) para la UI.
 export function rosterForClient() {
   return {
     roles: ROLES.map(({ id, team, name, title, defaultModel, color }) => ({

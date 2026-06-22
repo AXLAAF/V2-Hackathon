@@ -10,15 +10,20 @@
 
 **Live demo (30 seconds):** Open [hackaton.xooktech.com](https://hackaton.xooktech.com/) → paste code from `API/examples/suspicious_installer.py` → **Start trial** → watch four agents debate live → read the judge's structured verdict.
 
-## Headline results (n = 20 artifacts, 3 repeats each)
+## Headline results — Phase 1 (VULNERABLE/SAFE, n = 20, 3 repeats)
 
 | Condition | Precision | Recall | FPR | F1 | Status |
 |---|---|---|---|---|---|
-| Single-agent baseline | — | — | — | — | Harness ready, **not yet run** |
-| HAZE debate (2 rounds) | 72.7% | **80.0%** | 30.0% | 76.2% | Measured |
-| HAZE debate (1 round) | 72.7% | **80.0%** | 30.0% | 76.2% | Ablation (McNemar *p* = 1.0) |
+| Single-agent baseline | 55.6% | **100%** | **80.0%** | 71.4% | **Measured** |
+| HAZE debate (1 round) | **80.0%** | 80.0% | **20.0%** | **80.0%** | **Measured** |
 
-Full analysis: [`evaluation/results/summary.md`](V2%20Hackaton/evaluation/results/summary.md)
+McNemar baseline vs debate: *p* = 0.344 (directional; FPR 80%→20%, underpowered at n=20).
+
+Full analysis: [`evaluation/results/summary_phase1.md`](V2%20Hackaton/evaluation/results/summary_phase1.md)
+
+Prior web run (malware framing): [`summary.md`](V2%20Hackaton/evaluation/results/summary.md)
+
+**Cost efficiency:** The full web benchmark (120 labeled verdicts, five models, 1–2 debate rounds) cost **~USD 2.3** in OpenRouter tokens (~**$0.02 per verdict**, ~42 min wall-clock). At this price, defaulting to **1 debate round** (McNemar showed zero verdict change) would roughly halve cost and latency.
 
 ### Error taxonomy (why it fails — and where it works)
 
@@ -38,6 +43,7 @@ Full analysis: [`evaluation/results/summary.md`](V2%20Hackaton/evaluation/result
 | [`V2 Hackaton/global-south-ais-template-main/draft_submission.md`](V2%20Hackaton/global-south-ais-template-main/draft_submission.md) | Research paper (English, extended draft) |
 | [`V2 Hackaton/global-south-ais-template-main/report.tex`](V2%20Hackaton/global-south-ais-template-main/report.tex) | **Hackathon submission PDF source** |
 | [`V2 Hackaton/global-south-ais-template-main/SUBMISSION.md`](V2%20Hackaton/global-south-ais-template-main/SUBMISSION.md) | Compile & upload checklist |
+| [`V2 Hackaton/docs/VALIDATION-ROADMAP.md`](V2%20Hackaton/docs/VALIDATION-ROADMAP.md) | Measured vs pending experiments (judge review) |
 
 ## Quick start — run HAZE locally
 
@@ -64,7 +70,7 @@ python analyze.py      # -> results/metrics.json, summary.md, figures/
 | RQ1 | Does debate detect real vulnerabilities? | **80% recall** (8/10) |
 | RQ2 | Does it hallucinate on patched code? | **30% FPR** (3/10) |
 | RQ3 | Does a 2nd round change verdicts? | **No** (McNemar *p* = 1.0) |
-| RQ4 | Does debate beat single-agent on FPR? | **Pending** — run `run_eval.mjs` |
+| RQ4 | Does debate beat single-agent on FPR? | **Yes (directional):** 80%→20% FPR; McNemar *p* = 0.34 at n=20 |
 
 ## License
 

@@ -8,10 +8,12 @@ let running = false;
 
 const TEAM_LABEL = { acusacion: 'acusacion', defensa: 'defensa', tribunal: 'tribunal' };
 const VERDICT_LABEL = {
-  MALICIOSO:    'MALICIOSO',
   VULNERABLE:   'VULNERABLE',
-  NO_MALICIOSO: 'NO MALICIOSO',
+  SEGURO:       'SEGURO',
   INCONCLUSO:   'INCONCLUSO',
+  // Compatibilidad con veredictos legacy (eval web anterior)
+  MALICIOSO:    'VULNERABLE',
+  NO_MALICIOSO: 'SEGURO',
 };
 
 // Roster por defecto: garantiza que la selección de modelos se muestre

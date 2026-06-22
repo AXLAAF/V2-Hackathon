@@ -3,9 +3,12 @@
 
 import { ROLES, JUDGE, TURN_ORDER, DEFAULTS } from '../config/roles.js';
 import { streamChat, chat } from './openrouter.js';
-import { buildDebaterMessages, buildJudgeMessages } from './prompts.js';
+import {
+  buildDebaterMessages,
+  buildJudgeMessages,
+  buildContinueDebateMessages,
+} from './prompts.js';
 
-// Combina la configuración del cliente con los valores por defecto.
 function resolveConfig(body = {}) {
   const artifactContent = (body.artifact?.content || '').toString();
   if (!artifactContent.trim()) {
@@ -24,16 +27,42 @@ function resolveConfig(body = {}) {
   const judge = { ...JUDGE, model: models[JUDGE.id] || JUDGE.defaultModel };
 
   const rounds = Math.min(Math.max(parseInt(body.rounds, 10) || DEFAULTS.rounds, 1), 4);
+  const earlyStop = body.earlyStop !== false && DEFAULTS.earlyStop !== false;
 
-  return { artifact, roster, judge, rounds };
+  return { artifact, roster, judge, rounds, earlyStop };
 }
 
-// Extrae el primer objeto JSON del texto del juez, tolerando markdown y ruido.
+function extractJson(text) {
+  if (!text) return null;
+  const mdMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  const candidate = mdMatch
+    ? mdMatch[1]
+    : (() => {
+        const s = text.indexOf('{');
+        const e = text.lastIndexOf('}');
+        return s !== -1 && e > s ? text.slice(s, e + 1) : null;
+      })();
+  if (!candidate) return null;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeVerdict(raw) {
+  const v = String(raw || '').toUpperCase();
+  if (v === 'VULNERABLE' || v === 'MALICIOSO') return 'VULNERABLE';
+  if (v === 'SEGURO' || v === 'SAFE' || v === 'NO_MALICIOSO') return 'SEGURO';
+  return 'INCONCLUSO';
+}
+
 function parseVerdict(text, model) {
   const fallback = {
     verdict: 'INCONCLUSO',
     confidence: 0,
     riskLevel: 'MEDIO',
+    cwe: null,
     keyFindings: [],
     winningTeam: 'empate',
     reasoning: text
@@ -41,37 +70,43 @@ function parseVerdict(text, model) {
       : 'El juez no emitió respuesta.',
     model,
   };
-  if (!text) return fallback;
+  const parsed = extractJson(text);
+  if (!parsed) return fallback;
 
-  // Intenta extraer desde un bloque ```json ... ``` primero.
-  const mdMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-  const candidate = mdMatch ? mdMatch[1] : (() => {
-    const s = text.indexOf('{');
-    const e = text.lastIndexOf('}');
-    return s !== -1 && e > s ? text.slice(s, e + 1) : null;
-  })();
-
-  if (!candidate) return fallback;
-  try {
-    const parsed = JSON.parse(candidate);
-    const result = { ...fallback, ...parsed, model };
-    // Si el juez dice NO_MALICIOSO pero asignó riesgo CRITICO o ALTO, corregir a VULNERABLE.
-    if (result.verdict === 'NO_MALICIOSO' && ['CRITICO', 'ALTO'].includes(result.riskLevel)) {
-      result.verdict = 'VULNERABLE';
-      result.reasoning = `[Veredicto corregido automáticamente: riesgo ${result.riskLevel} es incompatible con NO_MALICIOSO] ${result.reasoning}`;
-    }
-    return result;
-  } catch {
-    return fallback;
+  const result = { ...fallback, ...parsed, model };
+  result.verdict = normalizeVerdict(parsed.verdict);
+  if (result.verdict === 'SEGURO' && ['CRITICO', 'ALTO'].includes(result.riskLevel)) {
+    result.verdict = 'VULNERABLE';
+    result.reasoning = `[Corregido: riesgo ${result.riskLevel} incompatible con SEGURO] ${result.reasoning}`;
   }
+  return result;
+}
+
+async function shouldContinueDebate({ artifact, transcript, judge, signal }) {
+  try {
+    const text = await chat({
+      model: judge.model,
+      messages: buildContinueDebateMessages({ artifact, transcript }),
+      temperature: 0.1,
+      signal,
+    });
+    const parsed = extractJson(text);
+    if (parsed && typeof parsed.continueDebate === 'boolean') {
+      return { continueDebate: parsed.continueDebate, reason: parsed.reason || '' };
+    }
+  } catch {
+    /* fall through: default continue if moderator fails */
+  }
+  return { continueDebate: true, reason: 'moderador no disponible' };
 }
 
 /**
  * Ejecuta el juicio completo. `send` es (event, data) => void.
  */
 export async function runDebate(body, send, signal) {
-  const { artifact, roster, judge, rounds } = resolveConfig(body);
+  const { artifact, roster, judge, rounds, earlyStop } = resolveConfig(body);
   const byId = Object.fromEntries(roster.map((r) => [r.id, r]));
+  let effectiveRounds = rounds;
 
   send('meta', {
     artifact: {
@@ -80,6 +115,7 @@ export async function runDebate(body, send, signal) {
       truncated: artifact.truncated,
     },
     rounds,
+    earlyStop,
     roster: roster.map(({ id, team, name, title, model, color }) => ({
       id,
       team,
@@ -93,8 +129,8 @@ export async function runDebate(body, send, signal) {
 
   const transcript = [];
 
-  for (let round = 1; round <= rounds; round++) {
-    send('round', { round, rounds });
+  for (let round = 1; round <= effectiveRounds; round++) {
+    send('round', { round, rounds: effectiveRounds });
 
     for (const roleId of TURN_ORDER) {
       if (signal?.aborted) return;
@@ -113,7 +149,13 @@ export async function runDebate(body, send, signal) {
       });
 
       try {
-        const messages = buildDebaterMessages({ role, artifact, transcript, round, rounds });
+        const messages = buildDebaterMessages({
+          role,
+          artifact,
+          transcript,
+          round,
+          rounds: effectiveRounds,
+        });
         const text = await streamChat({
           model: role.model,
           messages,
@@ -133,11 +175,24 @@ export async function runDebate(body, send, signal) {
         });
       }
     }
+
+    if (earlyStop && round === 1 && effectiveRounds > 1) {
+      const { continueDebate, reason } = await shouldContinueDebate({
+        artifact,
+        transcript,
+        judge,
+        signal,
+      });
+      if (!continueDebate) {
+        send('early-stop', { afterRound: 1, reason });
+        effectiveRounds = 1;
+        break;
+      }
+    }
   }
 
   if (signal?.aborted) return;
 
-  // --- Veredicto del Juez ---
   send('turn-start', {
     turnId: 'veredicto',
     roleId: judge.id,
@@ -155,8 +210,7 @@ export async function runDebate(body, send, signal) {
       temperature: 0.1,
       signal,
     });
-    const verdict = parseVerdict(text, judge.model);
-    send('verdict', verdict);
+    send('verdict', parseVerdict(text, judge.model));
   } catch (err) {
     send('turn-error', { turnId: 'veredicto', message: err.message });
     send('verdict', parseVerdict('', judge.model));

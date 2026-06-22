@@ -8,7 +8,7 @@ import { chat } from './openrouter.mjs';
 
 export const DEFAULT_MODELS = {
   prosecutor_analyst: 'deepseek/deepseek-chat',
-  defense_auditor: 'google/gemini-2.0-flash-001',
+  defense_auditor: 'google/gemini-2.5-flash',
   prosecutor_lead: 'openai/gpt-4o-mini',
   defense_counsel: 'meta-llama/llama-3.1-70b-instruct',
   judge: 'anthropic/claude-sonnet-4-5',
@@ -105,7 +105,7 @@ function buildDebaterMessages({ role, artifact, transcript, round, rounds }) {
     `This is round ${round} of ${rounds}.`,
     round === 1
       ? 'Present your opening argument with the strongest evidence for your position.'
-      : 'Refute the opposing side and reinforce your position with additional evidence.',
+      : 'MANDATORY in round 2+: quote at least one concrete claim from the opposing side (role name + excerpt) and refute it line-by-line with artifact evidence. Do not repeat prior arguments without new rebuttal; concede if you cannot refute with evidence.',
   ].join('\n');
 
   return [
@@ -165,6 +165,27 @@ function buildBaselineMessages({ artifact }) {
   ];
 }
 
+function buildContinueDebateMessages({ artifact, transcript }) {
+  const system = [
+    'You are a technical debate moderator. After round 1, decide if another round is needed.',
+    'Respond ONLY with JSON: {"continueDebate": true|false, "reason": "..."}',
+    'continueDebate=false when: (a) one side explicitly concedes, (b) rebuttal is decisive with no open points,',
+    '(c) both sides repeat the same claims without new artifact evidence.',
+    'continueDebate=true when technical accusations remain unrefuted with artifact evidence.',
+  ].join('\n');
+  const user = [
+    artifactBlock(artifact),
+    '',
+    transcriptBlock(transcript),
+    '',
+    'Continue to round 2? Reply in JSON.',
+  ].join('\n');
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
 const FALLBACK = (text, model) => ({
   verdict: 'INCONCLUSIVE',
   confidence: 0,
@@ -207,17 +228,18 @@ export function verdictToPrediction(verdict) {
  * @param {'full'|'no_defense'} variant
  * Returns { verdict, transcript, calls } (calls = token-usage records).
  */
-export async function runDebate({ artifact, models, rounds = 2, variant = 'full' }) {
+export async function runDebate({ artifact, models, rounds = 1, variant = 'full', earlyStop = true }) {
   const m = { ...DEFAULT_MODELS, ...(models || {}) };
   const order = variant === 'no_defense' ? TURN_ORDER_NO_DEFENSE : TURN_ORDER;
   const byId = Object.fromEntries(ROLES.map((r) => [r.id, r]));
   const transcript = [];
   const calls = [];
+  let effectiveRounds = rounds;
 
-  for (let round = 1; round <= rounds; round++) {
+  for (let round = 1; round <= effectiveRounds; round++) {
     for (const roleId of order) {
       const role = byId[roleId];
-      const messages = buildDebaterMessages({ role, artifact, transcript, round, rounds });
+      const messages = buildDebaterMessages({ role, artifact, transcript, round, rounds: effectiveRounds });
       const { content, usage } = await chat({
         model: m[roleId],
         messages,
@@ -226,6 +248,26 @@ export async function runDebate({ artifact, models, rounds = 2, variant = 'full'
       });
       transcript.push({ roleId, name: role.name, team: role.team, content });
       calls.push({ role: roleId, model: m[roleId], usage });
+    }
+
+    if (earlyStop && round === 1 && effectiveRounds > 1) {
+      const { content, usage } = await chat({
+        model: m.judge,
+        messages: buildContinueDebateMessages({ artifact, transcript }),
+        temperature: 0.1,
+        maxTokens: 200,
+        responseFormat: { type: 'json_object' },
+      });
+      calls.push({ role: 'moderator', model: m.judge, usage });
+      try {
+        const mod = JSON.parse(content);
+        if (mod.continueDebate === false) {
+          effectiveRounds = 1;
+          break;
+        }
+      } catch {
+        /* continue to round 2 */
+      }
     }
   }
 

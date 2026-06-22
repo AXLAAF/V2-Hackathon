@@ -1,0 +1,15 @@
+{
+  "source": "OpenRouter usage dashboard (authors, June 2026)",
+  "evaluation_run": {
+    "tasks_completed": 120,
+    "tasks_with_retries": 131,
+    "conditions": ["debate", "debate_r1"],
+    "repeats_per_task": 3,
+    "artifacts": 20,
+    "wall_clock_seconds": 2515,
+    "estimated_total_usd": 2.3,
+    "usd_per_task": 0.019,
+    "usd_per_artifact_all_conditions": 0.115,
+    "note": "Full benchmark (120 SSE debates, 5 models, 1–2 rounds each) cost ~USD 2.3 in OpenRouter tokens — ~2 cents per labeled verdict."
+  }
+}

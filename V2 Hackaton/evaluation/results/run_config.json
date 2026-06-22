@@ -1,0 +1,18 @@
+{
+  "ts": "2026-06-22T04:10:58.973Z",
+  "conditions": [
+    "baseline",
+    "debate"
+  ],
+  "repeats": 3,
+  "rounds": 1,
+  "models": {
+    "prosecutor_analyst": "deepseek/deepseek-chat",
+    "defense_auditor": "google/gemini-2.5-flash",
+    "prosecutor_lead": "openai/gpt-4o-mini",
+    "defense_counsel": "meta-llama/llama-3.1-70b-instruct",
+    "judge": "anthropic/claude-sonnet-4-5",
+    "baseline": "openai/gpt-4o-mini"
+  },
+  "nArtifacts": 20
+}

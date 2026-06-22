@@ -609,8 +609,9 @@ input[type="range"]::-moz-range-thumb {
   border-left: 3px solid var(--c-20);
   animation: fadein 0.45s var(--ease);
 }
-.verdict.MALICIOSO    { border-left-color: var(--c-90); background: var(--c-08); }
 .verdict.VULNERABLE   { border-left-color: var(--c-70); background: var(--c-06); }
+.verdict.SEGURO       { border-left-color: var(--c-30); }
+.verdict.MALICIOSO    { border-left-color: var(--c-90); background: var(--c-08); }
 .verdict.NO_MALICIOSO { border-left-color: var(--c-30); }
 .verdict.INCONCLUSO   { border-left-color: var(--c-45); }
 
@@ -623,6 +624,7 @@ input[type="range"]::-moz-range-thumb {
   color: var(--c-90);
 }
 .verdict.VULNERABLE   h3 { color: var(--c-80); font-weight: 700; }
+.verdict.SEGURO       h3 { color: var(--c-65); font-weight: 600; }
 .verdict.NO_MALICIOSO h3 { color: var(--c-65); font-weight: 600; }
 .verdict.INCONCLUSO   h3 { color: var(--c-65); font-weight: 600; }
 

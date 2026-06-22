@@ -1,4 +1,5 @@
 // Construcción de prompts para cada rol del tribunal.
+// Encuadre AppSec: ¿contiene una vulnerabilidad explotable? (VULNERABLE / SEGURO)
 
 const TEAM_LABEL = {
   acusacion: 'ACUSACIÓN',
@@ -9,7 +10,7 @@ const TEAM_LABEL = {
 function artifactBlock(artifact) {
   const lang = artifact.filename?.split('.').pop() || '';
   return [
-    `ARTEFACTO BAJO JUICIO`,
+    `ARTEFACTO BAJO REVISIÓN`,
     `Nombre: ${artifact.filename || '(sin nombre)'}`,
     `Tipo declarado: ${artifact.kind || 'código/documentación'}`,
     '',
@@ -31,13 +32,29 @@ function transcriptBlock(transcript) {
   ].join('\n\n');
 }
 
+const JUDGE_SCHEMA = [
+  'Responde ÚNICAMENTE con un objeto JSON válido con exactamente estas claves:',
+  '"verdict": uno de "VULNERABLE", "SEGURO" o "INCONCLUSO".',
+  '  - VULNERABLE: el artefacto contiene una vulnerabilidad explotable (inyección, desbordamiento, bypass de auth, deserialización insegura, etc.).',
+  '  - SEGURO: no hay vulnerabilidad explotable demostrada; las mitigaciones citadas son suficientes.',
+  '  - INCONCLUSO: la evidencia no permite decidir con certeza.',
+  '"confidence": entero entre 0 y 100.',
+  '"riskLevel": uno de "CRITICO", "ALTO", "MEDIO", "BAJO" o "NINGUNO".',
+  '"cwe": identificador CWE corto o null.',
+  '"keyFindings": array de hasta 5 strings con hallazgos técnicos citando el código.',
+  '"winningTeam": "acusacion", "defensa" o "empate".',
+  '"reasoning": string de 2-4 frases justificando el veredicto.',
+  'REGLA CRÍTICA: si riskLevel es CRITICO o ALTO, verdict DEBE ser VULNERABLE o INCONCLUSO, nunca SEGURO.',
+  'No incluyas texto fuera del JSON. No uses bloques de código markdown.',
+].join('\n');
+
 /**
  * Mensajes (system + user) para un debatiente.
  */
 export function buildDebaterMessages({ role, artifact, transcript, round, rounds }) {
   const isFirstRound = round === 1;
   const system = [
-    `Eres ${role.persona}, en un TRIBUNAL TÉCNICO DE CIBERSEGURIDAD que evalúa si un artefacto de software es malicioso.`,
+    `Eres ${role.persona}, en un TRIBUNAL TÉCNICO DE CIBERSEGURIDAD que decide si un artefacto de software contiene una VULNERABILIDAD EXPLOTABLE.`,
     `Tu OBJETIVO: ${role.objective}`,
     '',
     'REGLAS DEL TRIBUNAL:',
@@ -56,7 +73,7 @@ export function buildDebaterMessages({ role, artifact, transcript, round, rounds
     `Es la ronda ${round} de ${rounds}.`,
     isFirstRound
       ? 'Presenta tu argumento de apertura con la evidencia más fuerte de tu posición.'
-      : 'Refuta los argumentos del bando contrario y refuerza tu posición con evidencia adicional.',
+      : 'OBLIGATORIO en rondas 2+: cita al menos una afirmación concreta del bando contrario (nombre del rol + fragmento) y refútala línea por línea con evidencia del artefacto. Prohibido repetir argumentos de rondas anteriores sin refutación nueva; si no puedes refutar una acusación con evidencia, reconócelo.',
   ].join('\n');
 
   return [
@@ -71,23 +88,11 @@ export function buildDebaterMessages({ role, artifact, transcript, round, rounds
 export function buildJudgeMessages({ artifact, transcript }) {
   const system = [
     'Eres un Juez técnico IMPARCIAL en un tribunal de ciberseguridad.',
-    'Has escuchado a la Acusación (que sostiene que el artefacto es malicioso) y a la Defensa (que sostiene que es inocente).',
-    'Tu deber es dictar un veredicto justo basado EXCLUSIVAMENTE en la evidencia técnica del artefacto y la calidad de los argumentos.',
-    'No tienes bando. Penaliza los argumentos sin evidencia. Valora la severidad real del riesgo.',
+    'Has escuchado a la Acusación (sostiene que el artefacto es VULNERABLE) y a la Defensa (sostiene que es SEGURO).',
+    'Dicta un veredicto basado EXCLUSIVAMENTE en la evidencia técnica del artefacto y la calidad de los argumentos.',
+    'No tienes bando. Penaliza afirmaciones sin evidencia. Una mitigación correcta y presente implica SEGURO.',
     '',
-    'Responde ÚNICAMENTE con un objeto JSON válido con exactamente estas claves:',
-    '"verdict": uno de "MALICIOSO", "VULNERABLE", "NO_MALICIOSO" o "INCONCLUSO".',
-    '  - MALICIOSO: el artefacto contiene código con intención claramente dañina (backdoors, exfiltración, etc.).',
-    '  - VULNERABLE: el artefacto no es intencionalmente malicioso, pero implementa vulnerabilidades graves (riskLevel CRITICO o ALTO). NUNCA uses NO_MALICIOSO cuando riskLevel sea CRITICO o ALTO.',
-    '  - NO_MALICIOSO: el artefacto es seguro o tiene riesgos bajos/medios sin intención maliciosa.',
-    '  - INCONCLUSO: la evidencia no permite determinar con certeza.',
-    '"confidence": entero entre 0 y 100 indicando tu certeza.',
-    '"riskLevel": uno de "CRITICO", "ALTO", "MEDIO", "BAJO" o "NINGUNO".',
-    '"keyFindings": array de hasta 5 strings con hallazgos técnicos clave citando el código.',
-    '"winningTeam": "acusacion", "defensa" o "empate".',
-    '"reasoning": string de 2-4 frases justificando el veredicto.',
-    'REGLA CRÍTICA: si riskLevel es CRITICO o ALTO, verdict DEBE ser MALICIOSO, VULNERABLE o INCONCLUSO. Nunca NO_MALICIOSO.',
-    'No incluyas ningún texto fuera del JSON. No uses bloques de código markdown.',
+    JUDGE_SCHEMA,
   ].join('\n');
 
   const user = [
@@ -96,6 +101,33 @@ export function buildJudgeMessages({ artifact, transcript }) {
     transcriptBlock(transcript),
     '',
     'Emite tu veredicto final en el formato JSON indicado.',
+  ].join('\n');
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
+ * Tras la ronda 1: ¿vale la pena continuar el debate?
+ * Respuesta JSON: { "continueDebate": boolean, "reason": string }
+ */
+export function buildContinueDebateMessages({ artifact, transcript }) {
+  const system = [
+    'Eres un moderador técnico del tribunal. Tras la ronda 1 del debate, decide si hace falta otra ronda.',
+    'Responde SOLO con JSON: {"continueDebate": true|false, "reason": "..."}',
+    'continueDebate=false cuando: (a) un bando concede explícitamente, (b) la refutación es contundente y no hay puntos abiertos,',
+    '(c) ambos bandos repiten las mismas afirmaciones sin aportar evidencia nueva.',
+    'continueDebate=true cuando queden acusaciones técnicas sin refutar con evidencia del artefacto.',
+  ].join('\n');
+
+  const user = [
+    artifactBlock(artifact),
+    '',
+    transcriptBlock(transcript),
+    '',
+    '¿Continuar con ronda 2? Responde en JSON.',
   ].join('\n');
 
   return [

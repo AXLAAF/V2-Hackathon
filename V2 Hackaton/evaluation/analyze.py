@@ -18,7 +18,7 @@ from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(HERE, "results")
-RAW = os.path.join(RESULTS, "raw.jsonl")
+RAW = os.path.join(RESULTS, os.environ.get("RAW_FILE", "raw.jsonl"))
 FIGDIR = os.path.join(RESULTS, "figures")
 
 CONDITION_LABELS = {

@@ -38,14 +38,18 @@ pip install -r requirements.txt
 # 2) key
 cp .env.example .env     # add OPENROUTER_API_KEY
 
-# 3) smoke test (2 artifacts, 2 conditions)
+# 3) Phase 1 — critical validation (baseline + debate, ~USD 1.5–2.0)
+node run_phase1.mjs
+RAW_FILE=raw_phase1.jsonl python3 analyze.py
+
+# Smoke test
+LIMIT=2 REPEATS=1 node run_phase1.mjs
+
+# Or manual:
 LIMIT=2 REPEATS=1 CONDITIONS=baseline,debate node run_eval.mjs
 
-# 4) full run
-REPEATS=3 ROUNDS=2 node run_eval.mjs
-
-# 5) analysis -> results/metrics.json, results/summary.md, results/figures/
-python analyze.py
+# Full run (default: 1 round, early-stop enabled in API)
+REPEATS=3 node run_eval.mjs
 ```
 
 ## Config (env vars)

@@ -23,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATASET_DIR = path.resolve(__dirname, '..', 'vulnerabilities');
 const RESULTS_DIR = path.resolve(__dirname, 'results');
 const TRANSCRIPTS_DIR = path.join(RESULTS_DIR, 'transcripts');
-const RAW = path.join(RESULTS_DIR, 'raw.jsonl');
+const RAW = path.join(RESULTS_DIR, process.env.RAW_FILE || 'raw.jsonl');
 
 async function loadEnv() {
   const envPath = path.join(__dirname, '.env');
@@ -130,7 +130,7 @@ async function main() {
     .map((s) => s.trim())
     .filter(Boolean);
   const repeats = parseInt(process.env.REPEATS || '3', 10);
-  const rounds = parseInt(process.env.ROUNDS || '2', 10);
+  const rounds = parseInt(process.env.ROUNDS || '1', 10);
   const limit = process.env.LIMIT ? parseInt(process.env.LIMIT, 10) : Infinity;
   const concurrency = parseInt(process.env.CONCURRENCY || '4', 10);
 
